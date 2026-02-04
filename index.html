@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Para Adrielle ❤️</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Background Media -->
+    <video class="background-media" autoplay muted loop></video>
+    <img class="background-media" />
+    <div class="overlay"></div>
+    
+    <div class="container">
+        <!-- Tela 1: Loading -->
+        <div class="screen active" id="screen1">
+            <div class="loading">✨ Preparando algo especial para você... ✨</div>
+        </div>
+
+        <!-- Tela 2: Introdução -->
+        <div class="screen" id="screen2">
+            <h1>Oi, Adrielle... ❤️</h1>
+            <div class="message">
+                Eu preciso te falar uma coisa muito importante...
+            </div>
+            <button class="btn-yes" onclick="nextScreen(3)">Continuar...</button>
+        </div>
+
+        <!-- Tela 3: Desculpas -->
+        <div class="screen" id="screen3">
+            <h1>Me perdoa? 🥺</h1>
+            <div class="message">
+                Olha, eu sei que ontem a gente brigou e eu sei que eu errei... 
+                Eu não queria que as coisas acontecessem daquele jeito. 
+                Você é muito especial pra mim, e eu fico mal quando a gente briga. 
+                Me desculpa por tudo que aconteceu, de verdade. 
+                Eu só quero que a gente fique bem... ❤️
+            </div>
+            <div class="buttons">
+                <button class="btn-yes" onclick="nextScreen(4)">Te perdoo ❤️</button>
+                <button class="btn-no" id="noBtn1" onmouseover="moveButton(this)" onclick="moveButton(this)">Não perdoo</button>
+            </div>
+        </div>
+
+        <!-- Tela 4: Agradecimento -->
+        <div class="screen" id="screen4">
+            <h1>Obrigado, amor! 😭❤️</h1>
+            <div class="message">
+                Você não faz ideia do quanto isso significa pra mim...
+                Sério, eu tava com o coração apertado.
+                Agora deixa eu te contar uma coisa...
+            </div>
+            <button class="btn-yes" onclick="nextScreen(5)">O que é?</button>
+        </div>
+
+        <!-- Tela 5: Declaração -->
+        <div class="screen" id="screen5">
+            <h1>Você me faz querer ser melhor! 💪❤️</h1>
+            <div class="message">
+                Sabe, mesmo quando você não acredita em mim ou não confia totalmente, 
+                você me dá motivação cada dia mais pra ser uma pessoa melhor.
+                Eu sei que às vezes eu falho, eu não sou perfeito...
+                Mas eu juro que eu quero sempre conseguir, sempre melhorar,
+                porque eu quero ser o melhor que eu posso ser... PARA NÓS! ❤️
+            </div>
+            <button class="btn-yes" onclick="nextScreen(6)">Continuar ❤️</button>
+        </div>
+
+        <!-- Tela 6: O quanto quer ela -->
+        <div class="screen" id="screen6">
+            <h1>Eu te quero tanto! 🥰</h1>
+            <div class="message">
+                Não sei se você sabe o quanto eu te quero comigo...
+                Tipo, MUITO mesmo! Todos os dias, toda hora.
+                Você me completa de um jeito que eu nem sei explicar.
+                E agora eu preciso te fazer uma pergunta importante...
+            </div>
+            <button class="btn-yes" onclick="nextScreen(7)">Que pergunta? 😳</button>
+        </div>
+
+        <!-- Tela 7: Tensão antes do pedido -->
+        <div class="screen" id="screen7">
+            <h1>Tô nervoso... 😅</h1>
+            <div class="message">
+                Olha, eu tô um pouquinho nervoso pra fazer essa pergunta...
+                Mas eu preciso perguntar...
+                Tá pronta?
+            </div>
+            <button class="btn-yes" onclick="nextScreen(8)">Tô pronta! 💕</button>
+        </div>
+
+        <!-- Tela 8: Contador -->
+        <div class="screen" id="screen8">
+            <h1>Lá vai... 💓</h1>
+            <div class="counter" id="countdown">3</div>
+        </div>
+
+        <!-- Tela 9: O PEDIDO -->
+        <div class="screen" id="screen9">
+            <h1>QUER CASAR COMIGO? 💍❤️</h1>
+            <div class="message">
+                Eu te amo muito e quero você do meu lado pra sempre!
+                Aceita ser minha esposa e construir uma vida comigo?
+            </div>
+            <div class="buttons">
+                <button class="btn-yes" onclick="nextScreen(10)">SIM, ACEITO! ❤️❤️❤️</button>
+                <button class="btn-no" id="noBtn2" onmouseover="moveButton(this)" onclick="moveButton(this)">Não</button>
+            </div>
+        </div>
+
+        <!-- Tela 10: Transição -->
+        <div class="screen final-screen" id="screen10">
+            <div class="celebration">🎉💖🎊💕🎉</div>
+            <h1>VOCÊ DISSE SIM! 😭❤️💍</h1>
+            <div class="message">
+                Você acabou de me fazer o homem mais feliz do mundo!
+                Vou casar com a mulher da minha vida!
+                Agora vem ver nossa história de amor...
+            </div>
+            <button class="btn-yes" onclick="showStory()">Ver Nossa História ❤️</button>
+        </div>
+    </div>
+
+    <!-- PÁGINA DA HISTÓRIA -->
+    <div class="story-page" id="storyPage">
+        <div class="story-container">
+            <h1 class="story-title">Nossa História de Amor 💕</h1>
+            
+            <!-- Seção 1 -->
+            <div class="story-section">
+                <img src="assets/WhatsApp Image 2026-02-04 at 12.44.27.jpeg" class="story-media" />
+                <div class="story-content">
+                    <h2>Obrigado por me amar ❤️</h2>
+                    <p>Antes de tudo... quero te agradecer por me dar a chance de te amar. Parece brincadeira, mas é real: é difícil até explicar o que eu sinto por você. Mas vou tentar...</p>
+                </div>
+            </div>
+
+            <!-- Seção 2 -->
+            <div class="story-section reverse">
+                <img src="assets/WhatsApp Image 2026-02-04 at 12.44.28.jpeg" class="story-media" />
+                <div class="story-content">
+                    <h2>Desde o primeiro dia... 😍</h2>
+                    <p>Desde o dia que te conheci — logo você, que dizia que não queria nada sério — foi tudo tão rápido, tão natural. Você me conquistou de um jeito tão simples, com seu jeitinho único e essa personalidade incrível. Naquele momento eu tive certeza: "eu vou casar com essa mulher" hahaha</p>
+                </div>
+            </div>
+
+            <!-- Seção 3 -->
+            <div class="story-section">
+                <img src="assets/WhatsApp Image 2026-02-04 at 12.44.28 (1).jpeg" class="story-media" />
+                <div class="story-content">
+                    <h2>Te admiro cada dia mais 🥰</h2>
+                    <p>Até hoje, toda vez que eu te olho, ainda fico bobo. Te admiro da mesma forma (ou mais) que da primeira vez que te vi. Você é linda demais! Maravilhosa por fora e por dentro. Daquelas que a gente olha e pensa: "como eu tive tanta sorte?"</p>
+                </div>
+            </div>
+
+            <!-- Seção 4 -->
+            <div class="story-section reverse">
+                <img src="assets/WhatsApp Image 2026-02-04 at 12.44.30.jpeg" class="story-media" />
+                <div class="story-content">
+                    <h2>Você é gostosa demais! 🔥</h2>
+                    <p>O corpo mais lindo desse mundo, sério... se eu não me controlar, a corrente cai rapidinho rs. Você me deixa completamente maluco, gatinha!</p>
+                </div>
+            </div>
+
+            <!-- Seção 5 -->
+            <div class="story-section">
+                <img src="assets/WhatsApp Image 2026-02-04 at 12.44.30 (1).jpeg" class="story-media" />
+                <div class="story-content">
+                    <h2>Sua personalidade é incrível! 💪</h2>
+                    <p>Mesmo com suas inseguranças, eu admiro cada pedacinho de quem você é — seu jeito de pensar, de falar, de agir... é tudo especial. Você é esforçada demais! O tanto que você se dedica me inspira todos os dias.</p>
+                </div>
+            </div>
+
+            <!-- Seção 6 -->
+            <div class="story-section reverse">
+                <img src="assets/WhatsApp Image 2026-02-04 at 12.44.32.jpeg" class="story-media" />
+                <div class="story-content">
+                    <h2>Você é inteligente! 🧠</h2>
+                    <p>Você me ensina tanta coisa, fala umas paradas que eu fico: "caralh*, que mente brilhante!" E mesmo com a teimosia (que é real kkk), você é maravilhosa. Perfeita do jeito que é!</p>
+                </div>
+            </div>
+
+            <!-- Seção 7 -->
+            <div class="story-section">
+                <img src="assets/WhatsApp Image 2026-02-04 at 12.44.38.jpeg" class="story-media" />
+                <div class="story-content">
+                    <h2>Nosso primeiro vídeo 📹</h2>
+                    <p>Lembro direitinho da primeira vez que fizemos um vídeo juntos — aquele que você postou nos stories. Naquele momento eu senti: "Preciso conquistar essa menina. Mostrar pra ela o quanto ela merece ser amada."</p>
+                </div>
+            </div>
+
+            <!-- Seção 8 -->
+            <div class="story-section reverse">
+                <img src="assets/WhatsApp Image 2026-02-04 at 12.44.38 (1).jpeg" class="story-media" />
+                <div class="story-content">
+                    <h2>A música que você me mandou 🎵</h2>
+                    <p>Quando você me mandou uma música dedicada a mim... mano, eu chorei! 🥹 Porque ali eu senti que era recíproco. Que não era só eu que tava nessa. E isso só me deu mais força pra continuar lutando por nós.</p>
+                </div>
+            </div>
+
+            <!-- Seção 9 -->
+            <div class="story-section">
+                <img src="assets/WhatsApp Image 2026-02-04 at 12.44.38 (2).jpeg" class="story-media" />
+                <div class="story-content">
+                    <h2>Seu primeiro buquê 💐</h2>
+                    <p>Lembro também do seu primeiro buquê, que te dei com todo carinho, pra te mostrar o quanto você é incrível.</p>
+                </div>
+            </div>
+
+            <!-- Seção 10 -->
+            <div class="story-section reverse">
+                <img src="assets/WhatsApp Image 2026-02-04 at 12.44.39.jpeg" class="story-media" />
+                <div class="story-content">
+                    <h2>Malhando juntos 💪</h2>
+                    <p>A primeira vez que malhamos juntos foi top demais. E continua sendo, porque saber que tenho você ali do meu lado, mesmo indiretamente, me motiva demais.</p>
+                </div>
+            </div>
+
+            <!-- Seção 11 -->
+            <div class="story-section">
+                <img src="assets/WhatsApp Image 2026-02-04 at 12.44.39 (1).jpeg" class="story-media" />
+                <div class="story-content">
+                    <h2>A Crocs perdida 😂</h2>
+                    <p>Aquele dia que você perdeu a Crocs na academia e eu fui buscar kkkkk porque minha mulher não pode ficar sem as coisas dela, né? 😌</p>
+                </div>
+            </div>
+
+            <!-- Seção 12 -->
+            <div class="story-section reverse">
+                <video src="assets/WhatsApp Video 2026-02-04 at 12.44.29.mp4" class="story-media" autoplay muted loop playsinline></video>
+                <div class="story-content">
+                    <h2>A foto da aliança 💍</h2>
+                    <p>Aquela foto da aliança que mandei pro seu pai kkkkk mesmo que aquele momento ainda não tenha dado certo, foi mais um passo da nossa história. E agora deu certo!</p>
+                </div>
+            </div>
+
+            <!-- Seção 13 -->
+            <div class="story-section">
+                <video src="assets/WhatsApp Video 2026-02-04 at 12.44.31.mp4" class="story-media" autoplay muted loop playsinline></video>
+                <div class="story-content">
+                    <h2>A noite das bebidas 🍺😂</h2>
+                    <p>Hahahaha inesquecível! O dia seguinte foi tenso, mas eu daria replay fácil só pela diversão e pelo quanto a gente riu.</p>
+                </div>
+            </div>
+
+            <!-- Seção 14 -->
+            <div class="story-section reverse">
+                <video src="assets/WhatsApp Video 2026-02-04 at 12.44.35.mp4" class="story-media" autoplay muted loop playsinline></video>
+                <div class="story-content">
+                    <h2>Nosso primeiro restaurante 🍽️</h2>
+                    <p>Depois de tantos dias dizendo que nunca tínhamos ido num encontro de verdade, finalmente fomos. E foi simplesmente perfeito. Te ver feliz me faz feliz em dobro.</p>
+                </div>
+            </div>
+
+            <!-- Seção 15 -->
+            <div class="story-section">
+                <video src="assets/WhatsApp Video 2026-02-04 at 12.44.37.mp4" class="story-media" autoplay muted loop playsinline></video>
+                <div class="story-content">
+                    <h2>Nosso primeiro acarajé 😂</h2>
+                    <p>Uma lembrança simples, mas que me faz lembrar o quanto você é maravilhosa, engraçada e espontânea.</p>
+                </div>
+            </div>
+
+            <!-- Seção especial - Nosso dia -->
+            <div class="special-section">
+                <h2>O NOSSO DIA! 🎉❤️</h2>
+                <p>E, finalmente, o nosso dia. O dia que deu certo. O dia que eu pude dizer: ela é minha. E vai continuar sendo, cada vez mais. ❤️</p>
+            </div>
+
+            <!-- Mensagem final especial -->
+            <div class="special-section">
+                <h2>Você é especial demais! ✨</h2>
+                <p>Quero que você sempre lembre o quanto é especial pra mim. O quanto eu amo ter você como minha companheira, minha mulher, minha futura esposa, minha melhor amiga... meu tudo. Eu admiro você demais. E, sério, cada dia que passa esse sentimento só cresce.</p>
+                <br><br>
+                <h2>Eu juro! 💍</h2>
+                <p>Eu juro de dedinho que vou casar com você. Então quando eu disser que você é linda, gostosa, maravilhosa — escuta, tá?! Porque é a mais pura verdade. Não digo isso só pra te conquistar. Até porque, né… já conquistei. Mas quero continuar te conquistando todos os dias. Porque eu amo a gente. E eu amo muito você, minha pinguim. ❤️🐧</p>
+            </div>
+
+            <!-- Botão certidão -->
+            <div style="text-align: center; margin: 100px 0;">
+                <h2 style="font-size: 3em; margin-bottom: 40px; color: #ff69b4;">Nossa Promessa Oficial! 💍</h2>
+                <a href="assets/casamento.png" download="Nossa_Certidao_de_Promessa.png" class="btn-download">
+                    📥 Baixar Certidão de Promessa
+                </a>
+            </div>
+
+            <!-- Final -->
+            <div class="final-message">
+                <div class="celebration">🎉💖🐧💕🎉</div>
+                <h1>EU TE AMO, ADRIELLE!</h1>
+                <p>Obrigado por existir, por estar comigo, por me fazer o homem mais feliz do mundo! Vou te amar pra sempre!</p>
+                <button class="btn-yes" onclick="celebration()" style="margin-top: 50px;">EXPLODIR DE AMOR! 💥❤️</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
