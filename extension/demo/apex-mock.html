@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Mock APEX — TRIAR PROCESSOS</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      background: #f0f2f5;
+      padding: 40px;
+    }
+    .t-Button {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 18px;
+      border: none;
+      border-radius: 4px;
+      background: #c74601;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    #log {
+      margin-top: 24px;
+      padding: 16px;
+      background: #fff;
+      border-radius: 8px;
+      min-height: 80px;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <h1>Simulação Oracle APEX</h1>
+  <p>Use esta página para testar a extensão localmente.</p>
+
+  <button
+    class="t-Button t-Button--icon t-Button--large t-Button--simple t-Button--iconLeft t-Button--hot"
+    type="button"
+    id="B68314861501381838"
+    data-otel-label="TRIAR_NIVEL_12"
+  >
+    <span class="t-Icon t-Icon--left fa fa-database-play fa-lg" aria-hidden="true"></span>
+    <span class="t-Button-label">TRIAR PROCESSOS</span>
+    <span class="t-Icon t-Icon--right fa fa-database-play fa-lg" aria-hidden="true"></span>
+  </button>
+
+  <div id="log">Aguardando cliques…</div>
+
+  <script>
+    const log = document.getElementById("log");
+    const btn = document.getElementById("B68314861501381838");
+    let count = 0;
+    btn.addEventListener("click", () => {
+      count += 1;
+      const line = `[${new Date().toLocaleTimeString("pt-BR")}] Clique #${count} em TRIAR PROCESSOS`;
+      log.textContent = line + "\n" + log.textContent;
+      console.log(line);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Triar Processos Auto</title>
+  <link rel="stylesheet" href="fonts.css" />
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="shell">
+    <div class="atmosphere" aria-hidden="true"></div>
+
+    <header class="brand">
+      <div class="mark" aria-hidden="true">
+        <span class="mark-ring"></span>
+        <span class="mark-play"></span>
+      </div>
+      <div class="brand-text">
+        <p class="product">Triar Auto</p>
+        <h1>TRIAR PROCESSOS</h1>
+      </div>
+    </header>
+
+    <p class="lede">Localiza o botão de triagem na página e dispara o clique no intervalo que você definir.</p>
+
+    <section class="status-panel" aria-live="polite">
+      <div class="status-row">
+        <span class="dot" id="statusDot" data-state="idle"></span>
+        <div>
+          <p class="status-label" id="statusLabel">Pausado</p>
+          <p class="status-detail" id="statusDetail">Pronto para iniciar</p>
+        </div>
+      </div>
+      <div class="meta">
+        <div>
+          <span class="meta-key">Cliques</span>
+          <strong id="clickCount">0</strong>
+        </div>
+        <div>
+          <span class="meta-key">Último</span>
+          <strong id="lastClick">—</strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="probe" id="probeBox">
+      <span class="probe-label">Botão na aba atual</span>
+      <strong id="probeResult">Verificando…</strong>
+    </section>
+
+    <label class="field">
+      <span>Intervalo (minutos)</span>
+      <div class="interval-row">
+        <input type="range" id="intervalRange" min="1" max="60" value="5" />
+        <input type="number" id="intervalInput" min="1" max="60" value="5" />
+      </div>
+    </label>
+
+    <div class="actions">
+      <button type="button" class="btn primary" id="toggleBtn">Iniciar</button>
+      <button type="button" class="btn ghost" id="clickNowBtn">Clicar agora</button>
+    </div>
+
+    <footer class="credit">
+      <span>Desenvolvido por</span>
+      <strong>Witório Bandeira</strong>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
