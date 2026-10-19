@@ -39,8 +39,8 @@ body {
   padding: 22px 20px 16px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  min-height: 480px;
+  gap: 12px;
+  min-height: 560px;
 }
 
 .atmosphere {
@@ -359,6 +359,11 @@ input[type="number"]:focus {
   background: transparent;
   color: #fff;
   border: 1px solid var(--line);
+}
+
+.btn.full {
+  width: 100%;
+  animation: rise 0.9s ease-out both;
 }
 
 .btn:hover {

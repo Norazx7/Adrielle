@@ -1,49 +1,30 @@
 # Triar Auto — Processos & Despacho
 
-Extensão Chrome (Manifest V3) que clica automaticamente, no intervalo configurado (padrão: 5 minutos), em:
+Extensão Chrome (Manifest V3) multi-aba para automatizar cliques em:
 
-- **TRIAR PROCESSOS** (botão da tela de triagem)
-- **Criar Despacho** (botão `.t-Button-label`)
-
-Escolha o alvo no popup. Depois de reload/navegação, a extensão **reinjeta o script**, espera o alvo voltar (até 60s) e segue o ciclo.
+- **TRIAR PROCESSOS**
+- **Criar Despacho** (`span.t-Button-label`)
 
 **Desenvolvido por Witório Bandeira**
 
-## Como instalar
+## Como usar com 2 abas
 
-1. Abra o Chrome em `chrome://extensions`
-2. Ative o **Modo do desenvolvedor**
-3. Clique em **Carregar sem compactação**
-4. Selecione a pasta `extension` deste repositório
+1. Aba 1 (triagem): escolha **TRIAR PROCESSOS** → **Iniciar nesta aba**
+2. Aba 2 (despacho): escolha **Criar Despacho** → **Iniciar nesta aba**
+3. As duas ficam ativas ao mesmo tempo (veja “Abas ativas” no popup)
 
-## Como usar
+Cada aba guarda a própria ação. O intervalo é global.
 
-1. Abra a página do sistema onde o botão **TRIAR PROCESSOS** aparece
-2. Clique no ícone da extensão
-3. Confirme que o status mostra o botão encontrado
-4. Ajuste o intervalo (1–60 minutos) se quiser
-5. Clique em **Iniciar**
+## Detecção
 
-A extensão também oferece **Clicar agora** para um disparo manual imediato.
+- Varre **todos os frames** da aba
+- Procura por `data-otel-label`, id, `.t-Button-label` e texto normalizado
+- Espera até 90s após reload da página
+- Reinjeta o script automaticamente
 
-## O que ela procura
+## Instalar
 
-O content script tenta, nesta ordem:
-
-1. `[data-otel-label="TRIAR_NIVEL_12"]`
-2. `#B68314861501381838`
-3. Botões `.t-Button` / `button` cujo texto contenha `TRIAR PROCESSOS`
-
-## Arquivos
-
-```
-extension/
-├── manifest.json
-├── background/service-worker.js
-├── content/content.js
-├── popup/
-│   ├── popup.html
-│   ├── popup.css
-│   └── popup.js
-└── icons/
-```
+1. Extraia o zip
+2. `chrome://extensions` → Modo do desenvolvedor
+3. Remova a versão antiga
+4. **Carregar sem compactação** → pasta extraída

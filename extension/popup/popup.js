@@ -6,11 +6,14 @@ const els = {
   lastClick: document.getElementById("lastClick"),
   probeBox: document.getElementById("probeBox"),
   probeResult: document.getElementById("probeResult"),
+  tabInfo: document.getElementById("tabInfo"),
+  jobsResult: document.getElementById("jobsResult"),
   targetSelect: document.getElementById("targetSelect"),
   intervalRange: document.getElementById("intervalRange"),
   intervalInput: document.getElementById("intervalInput"),
   toggleBtn: document.getElementById("toggleBtn"),
   clickNowBtn: document.getElementById("clickNowBtn"),
+  stopAllBtn: document.getElementById("stopAllBtn"),
 };
 
 function formatTime(ts) {
@@ -36,70 +39,103 @@ function resolveTargetKey(value) {
   return value === "despacho" ? "despacho" : "triar";
 }
 
-function renderState(state) {
-  const enabled = Boolean(state.enabled);
-  els.statusDot.dataset.state =
-    enabled ? (state.lastOk === false ? "error" : "on") : "idle";
-  els.statusLabel.textContent = enabled ? "Em execução" : "Pausado";
-  els.statusDetail.textContent = state.lastStatus || "—";
-  els.clickCount.textContent = String(state.clickCount || 0);
-  els.lastClick.textContent = formatTime(state.lastClickAt);
+function targetName(key) {
+  return resolveTargetKey(key) === "despacho" ? "Criar Despacho" : "TRIAR PROCESSOS";
+}
 
-  const interval = clampInterval(state.intervalMinutes);
+function shortTitle(title, url) {
+  const t = (title || "").trim();
+  if (t && t !== "New Tab") return t.length > 42 ? `${t.slice(0, 40)}…` : t;
+  if (url) {
+    try {
+      return new URL(url).hostname;
+    } catch {
+      return url.slice(0, 42);
+    }
+  }
+  return "Aba sem título";
+}
+
+function renderState(view) {
+  const job = view.activeJob;
+  const enabled = Boolean(job?.enabled);
+
+  els.statusDot.dataset.state = enabled ? (job?.lastOk === false ? "error" : "on") : "idle";
+  els.statusLabel.textContent = enabled ? "Ativo nesta aba" : "Pausado nesta aba";
+  els.statusDetail.textContent = job?.lastStatus || view.error || "Escolha a ação e inicie nesta aba.";
+  els.clickCount.textContent = String(job?.clickCount || 0);
+  els.lastClick.textContent = formatTime(job?.lastClickAt);
+
+  const interval = clampInterval(view.intervalMinutes);
   els.intervalRange.value = String(interval);
   els.intervalInput.value = String(interval);
-  els.targetSelect.value = resolveTargetKey(state.targetKey);
 
-  els.toggleBtn.textContent = enabled ? "Pausar" : "Iniciar";
+  const targetKey = resolveTargetKey(job?.targetKey || els.targetSelect.value);
+  els.targetSelect.value = targetKey;
+
+  els.tabInfo.textContent = view.activeTabId
+    ? `#${view.activeTabId} · ${shortTitle(view.activeTabTitle, view.activeTabUrl)}`
+    : "Nenhuma aba ativa";
+
+  const enabledJobs = (view.jobs || []).filter((j) => j.enabled);
+  if (!enabledJobs.length) {
+    els.jobsResult.textContent = "Nenhuma";
+  } else {
+    els.jobsResult.textContent = enabledJobs
+      .map((j) => `#${j.tabId} ${targetName(j.targetKey)}`)
+      .join(" · ");
+  }
+
+  els.toggleBtn.textContent = enabled ? "Pausar esta aba" : "Iniciar nesta aba";
   els.toggleBtn.dataset.running = enabled ? "true" : "false";
 }
 
 async function send(type, payload = {}) {
   if (!globalThis.chrome?.runtime?.sendMessage) {
-    throw new Error("Abra pelo ícone da extensão (não como página HTML).");
+    throw new Error("Abra pelo ícone da extensão.");
   }
   return chrome.runtime.sendMessage({ type, ...payload });
 }
 
 async function refreshProbe() {
-  els.probeResult.textContent = "Verificando…";
+  els.probeResult.textContent = "Verificando em todos os frames…";
   els.probeBox.dataset.found = "";
   const targetKey = resolveTargetKey(els.targetSelect.value);
   try {
     const probe = await send("PROBE_ACTIVE_TAB", { targetKey });
     if (probe?.found) {
       els.probeBox.dataset.found = "true";
-      const label = probe.label || probe.targetName || "Alvo";
+      const label = probe.label || probe.targetName || targetName(targetKey);
       const disabled = probe.disabled ? " (desabilitado)" : "";
       els.probeResult.textContent = `Encontrado: ${label}${disabled}`;
     } else {
       els.probeBox.dataset.found = "false";
       els.probeResult.textContent =
-        probe?.message || "Não encontrado nesta aba. Abra a tela do sistema.";
+        probe?.message || "Não encontrado. Confirme que o botão está visível nesta aba.";
     }
   } catch (err) {
     els.probeBox.dataset.found = "false";
-    els.probeResult.textContent = err.message || "Erro ao inspecionar a aba.";
+    els.probeResult.textContent = err.message || "Erro ao inspecionar.";
   }
 }
 
 async function boot() {
   try {
-    const state = await send("GET_STATE");
-    renderState(state || {});
+    const view = await send("GET_STATE");
+    renderState(view || {});
     await refreshProbe();
   } catch (err) {
     els.statusDetail.textContent = err.message || "Extensão não conectada.";
     els.probeBox.dataset.found = "false";
-    els.probeResult.textContent = "Carregue a extensão em chrome://extensions";
+    els.probeResult.textContent = "Recarregue a extensão em chrome://extensions";
   }
 }
 
 els.toggleBtn.addEventListener("click", async () => {
-  const current = await send("GET_STATE");
+  const view = await send("GET_STATE");
   const intervalMinutes = clampInterval(els.intervalInput.value);
   const targetKey = resolveTargetKey(els.targetSelect.value);
-  if (current?.enabled) {
+  if (view?.activeJob?.enabled) {
     renderState(await send("STOP"));
   } else {
     renderState(await send("START", { intervalMinutes, targetKey }));
@@ -111,13 +147,18 @@ els.clickNowBtn.addEventListener("click", async () => {
   els.clickNowBtn.disabled = true;
   els.clickNowBtn.textContent = "Clicando…";
   try {
-    await send("SAVE_TARGET", { targetKey: resolveTargetKey(els.targetSelect.value) });
-    renderState(await send("CLICK_NOW"));
+    const targetKey = resolveTargetKey(els.targetSelect.value);
+    renderState(await send("CLICK_NOW", { targetKey }));
     await refreshProbe();
   } finally {
     els.clickNowBtn.disabled = false;
     els.clickNowBtn.textContent = "Clicar agora";
   }
+});
+
+els.stopAllBtn.addEventListener("click", async () => {
+  renderState(await send("STOP_ALL"));
+  await refreshProbe();
 });
 
 els.targetSelect.addEventListener("change", async () => {
@@ -133,9 +174,7 @@ function syncIntervalInputs(from) {
   return value;
 }
 
-els.intervalRange.addEventListener("input", () => {
-  syncIntervalInputs("range");
-});
+els.intervalRange.addEventListener("input", () => syncIntervalInputs("range"));
 
 els.intervalInput.addEventListener("change", async () => {
   const intervalMinutes = syncIntervalInputs("input");

@@ -3,17 +3,13 @@ const TARGET_NAMES = {
   despacho: "Criar Despacho",
 };
 
-const DEFAULT_SETTINGS = {
-  enabled: false,
+const DEFAULT_STATE = {
   intervalMinutes: 5,
-  targetKey: "triar",
-  lastClickAt: null,
-  lastStatus: "Aguardando início",
-  lastOk: null,
-  clickCount: 0,
-  trackedTabId: null,
-  trackedTabUrl: null,
+  jobs: {}, // { [tabId]: Job }
 };
+
+const WAIT_MS = 90000;
+const PROBE_WAIT_MS = 12000;
 
 function resolveTargetKey(value) {
   return value === "despacho" ? "despacho" : "triar";
@@ -23,27 +19,66 @@ function targetLabel(key) {
   return TARGET_NAMES[resolveTargetKey(key)] || TARGET_NAMES.triar;
 }
 
-const WAIT_AFTER_RELOAD_MS = 60000;
-
-async function getSettings() {
-  const data = await chrome.storage.local.get(DEFAULT_SETTINGS);
-  return { ...DEFAULT_SETTINGS, ...data };
+function emptyJob(tabId, partial = {}) {
+  return {
+    tabId,
+    enabled: false,
+    targetKey: "triar",
+    url: null,
+    title: null,
+    lastClickAt: null,
+    lastStatus: "Aguardando início nesta aba",
+    lastOk: null,
+    clickCount: 0,
+    ...partial,
+  };
 }
 
-async function setSettings(partial) {
-  const current = await getSettings();
-  const next = { ...current, ...partial };
+async function getState() {
+  const data = await chrome.storage.local.get(DEFAULT_STATE);
+  return {
+    intervalMinutes: Math.max(1, Number(data.intervalMinutes) || 5),
+    jobs: data.jobs && typeof data.jobs === "object" ? data.jobs : {},
+  };
+}
+
+async function setState(partial) {
+  const current = await getState();
+  const next = {
+    intervalMinutes: partial.intervalMinutes ?? current.intervalMinutes,
+    jobs: partial.jobs ?? current.jobs,
+  };
   await chrome.storage.local.set(next);
   return next;
 }
 
-async function clearAlarm() {
-  await chrome.alarms.clear("triar-auto-click");
+async function upsertJob(tabId, partial) {
+  const state = await getState();
+  const key = String(tabId);
+  const prev = state.jobs[key] || emptyJob(tabId);
+  const nextJob = { ...prev, ...partial, tabId };
+  const jobs = { ...state.jobs, [key]: nextJob };
+  await setState({ jobs });
+  return nextJob;
 }
 
-async function scheduleAlarm(intervalMinutes) {
-  await clearAlarm();
-  const minutes = Math.max(1, Number(intervalMinutes) || 5);
+async function removeJob(tabId) {
+  const state = await getState();
+  const jobs = { ...state.jobs };
+  delete jobs[String(tabId)];
+  await setState({ jobs });
+}
+
+function enabledJobs(state) {
+  return Object.values(state.jobs || {}).filter((j) => j && j.enabled);
+}
+
+async function syncAlarm() {
+  const state = await getState();
+  const active = enabledJobs(state);
+  await chrome.alarms.clear("triar-auto-click");
+  if (!active.length) return;
+  const minutes = Math.max(1, Number(state.intervalMinutes) || 5);
   await chrome.alarms.create("triar-auto-click", {
     delayInMinutes: minutes,
     periodInMinutes: minutes,
@@ -52,51 +87,34 @@ async function scheduleAlarm(intervalMinutes) {
 
 function isRestrictedUrl(url) {
   if (!url) return true;
-  return (
-    url.startsWith("chrome://") ||
-    url.startsWith("chrome-extension://") ||
-    url.startsWith("edge://") ||
-    url.startsWith("about:")
-  );
+  return /^(chrome|chrome-extension|edge|about|devtools):/i.test(url);
 }
 
-async function getTargetTab() {
-  const settings = await getSettings();
-  if (settings.trackedTabId != null) {
-    try {
-      const tab = await chrome.tabs.get(settings.trackedTabId);
-      if (tab) return tab;
-    } catch {
-      /* tab closed */
-    }
-  }
+async function getActiveTab() {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   return tabs[0] || null;
 }
 
-async function rememberTab(tab) {
-  if (!tab?.id) return;
-  await setSettings({
-    trackedTabId: tab.id,
-    trackedTabUrl: tab.url || null,
-  });
-}
-
 async function ensureContentScript(tabId) {
   try {
-    await chrome.tabs.sendMessage(tabId, { type: "PING" });
+    await chrome.scripting.executeScript({
+      target: { tabId, allFrames: true },
+      files: ["content/content.js"],
+    });
     return true;
   } catch {
-    try {
-      await chrome.scripting.executeScript({
-        target: { tabId, allFrames: true },
-        files: ["content/content.js"],
-      });
-      return true;
-    } catch {
-      return false;
-    }
+    return false;
   }
+}
+
+async function listFrameIds(tabId) {
+  try {
+    const frames = await chrome.webNavigation.getAllFrames({ tabId });
+    if (frames?.length) return frames.map((f) => f.frameId);
+  } catch {
+    /* fallback */
+  }
+  return [0];
 }
 
 function isNavigationError(err) {
@@ -105,17 +123,74 @@ function isNavigationError(err) {
     msg.includes("message port closed") ||
     msg.includes("Receiving end does not exist") ||
     msg.includes("The tab was closed") ||
-    msg.includes("Frame with ID")
+    msg.includes("Frame with ID") ||
+    msg.includes("No frame with id")
   );
 }
 
-async function sendClick(tabId, targetKey) {
+async function sendToAllFrames(tabId, message) {
+  const frameIds = await listFrameIds(tabId);
+  const results = [];
+
+  await Promise.all(
+    frameIds.map(async (frameId) => {
+      try {
+        const result = await chrome.tabs.sendMessage(tabId, message, { frameId });
+        if (result) results.push({ frameId, result });
+      } catch (err) {
+        results.push({ frameId, error: String(err?.message || err) });
+      }
+    })
+  );
+
+  return results;
+}
+
+function pickBestResult(results, { preferOk = false } = {}) {
+  const usable = results
+    .map((r) => r.result)
+    .filter((r) => r && typeof r === "object");
+
+  if (preferOk) {
+    const ok = usable.find((r) => r.ok);
+    if (ok) return ok;
+  }
+
+  const found = usable.find((r) => r.found);
+  if (found) return found;
+
+  return usable[0] || null;
+}
+
+async function probeTab(tabId, targetKey, waitMs = PROBE_WAIT_MS) {
+  await ensureContentScript(tabId);
   const key = resolveTargetKey(targetKey);
+  const results = await sendToAllFrames(tabId, {
+    type: "PROBE_BUTTON",
+    targetKey: key,
+    waitMs,
+  });
+  const best = pickBestResult(results);
+  if (best?.found) return best;
+  return {
+    found: false,
+    targetKey: key,
+    targetName: targetLabel(key),
+    message: `"${targetLabel(key)}" não encontrado em nenhum frame desta aba.`,
+    framesChecked: results.length,
+  };
+}
+
+async function clickTab(tabId, targetKey, waitMs = WAIT_MS) {
+  await ensureContentScript(tabId);
+  const key = resolveTargetKey(targetKey);
+
+  let results;
   try {
-    return await chrome.tabs.sendMessage(tabId, {
+    results = await sendToAllFrames(tabId, {
       type: "CLICK_TARGET",
       targetKey: key,
-      waitMs: WAIT_AFTER_RELOAD_MS,
+      waitMs,
     });
   } catch (err) {
     if (isNavigationError(err)) {
@@ -129,98 +204,113 @@ async function sendClick(tabId, targetKey) {
     }
     throw err;
   }
+
+  const bestOk = pickBestResult(results, { preferOk: true });
+  if (bestOk?.ok) return bestOk;
+
+  // Se a página recarregou no meio, frames falham — trata como sucesso parcial
+  const navish = results.every((r) => r.error && isNavigationError({ message: r.error }));
+  if (navish && results.length) {
+    return {
+      ok: true,
+      found: true,
+      expectsReload: true,
+      targetKey: key,
+      message: `Clique provavelmente executado; a página recarregou.`,
+    };
+  }
+
+  const best = pickBestResult(results);
+  if (best) return best;
+
+  return {
+    ok: false,
+    found: false,
+    targetKey: key,
+    message: `"${targetLabel(key)}" não encontrado nesta aba.`,
+    framesChecked: results.length,
+  };
 }
 
-async function runClickOnTargetTab() {
-  const tab = await getTargetTab();
-  if (!tab?.id) {
-    return setSettings({
-      lastStatus: "Nenhuma aba disponível. Abra o sistema e clique em Iniciar de novo.",
-      lastOk: false,
-    });
+async function runJob(job) {
+  if (!job?.tabId) return null;
+
+  let tab;
+  try {
+    tab = await chrome.tabs.get(job.tabId);
+  } catch {
+    await removeJob(job.tabId);
+    return null;
   }
 
   if (isRestrictedUrl(tab.url)) {
-    return setSettings({
-      lastStatus: "Abra a página do sistema (APEX) e tente novamente.",
+    return upsertJob(job.tabId, {
+      lastStatus: "URL inválida nesta aba (abra o sistema APEX).",
       lastOk: false,
+      url: tab.url || null,
+      title: tab.title || null,
     });
   }
-
-  await rememberTab(tab);
-
-  const injected = await ensureContentScript(tab.id);
-  if (!injected) {
-    return setSettings({
-      lastStatus: "Não foi possível injetar o script nesta página.",
-      lastOk: false,
-    });
-  }
-
-  const current = await getSettings();
-  const targetKey = resolveTargetKey(current.targetKey);
 
   let result;
   try {
-    result = await sendClick(tab.id, targetKey);
+    result = await clickTab(job.tabId, job.targetKey, WAIT_MS);
   } catch (err) {
-    return setSettings({
-      lastStatus: `Falha ao comunicar com a página: ${err.message || err}`,
+    return upsertJob(job.tabId, {
+      lastStatus: `Erro: ${err.message || err}`,
       lastOk: false,
+      url: tab.url || null,
+      title: tab.title || null,
     });
   }
 
   const ok = Boolean(result?.ok);
-  return setSettings({
+  return upsertJob(job.tabId, {
     lastClickAt: Date.now(),
-    lastStatus: result?.message || "Sem resposta do content script.",
+    lastStatus: result?.message || "Sem resposta",
     lastOk: ok,
-    clickCount: ok ? (current.clickCount || 0) + 1 : current.clickCount || 0,
+    clickCount: ok ? (job.clickCount || 0) + 1 : job.clickCount || 0,
+    url: tab.url || null,
+    title: tab.title || null,
+    targetKey: resolveTargetKey(job.targetKey),
   });
 }
 
-async function recoverAfterReload(tabId) {
-  const settings = await getSettings();
-  if (!settings.enabled) return;
-  if (settings.trackedTabId != null && tabId !== settings.trackedTabId) return;
-
-  const injected = await ensureContentScript(tabId);
-  if (!injected) {
-    await setSettings({
-      lastStatus: "Página recarregou, mas o script não reinjetou ainda.",
-      lastOk: false,
-    });
-    return;
+async function runAllEnabledJobs() {
+  const state = await getState();
+  const jobs = enabledJobs(state);
+  for (const job of jobs) {
+    await runJob(job);
   }
+  return getState();
+}
 
-  const targetKey = resolveTargetKey(settings.targetKey);
-  await setSettings({
-    lastStatus: `Página recarregou — aguardando "${targetLabel(targetKey)}"…`,
+async function recoverAfterReload(tabId) {
+  const state = await getState();
+  const job = state.jobs[String(tabId)];
+  if (!job?.enabled) return;
+
+  await ensureContentScript(tabId);
+  await upsertJob(tabId, {
+    lastStatus: `Reload — procurando "${targetLabel(job.targetKey)}"…`,
   });
 
   try {
-    const probe = await chrome.tabs.sendMessage(tabId, {
-      type: "PROBE_BUTTON",
-      targetKey,
-      waitMs: WAIT_AFTER_RELOAD_MS,
-    });
-
+    const probe = await probeTab(tabId, job.targetKey, WAIT_MS);
     if (probe?.found) {
-      await setSettings({
-        lastStatus: settings.enabled
-          ? `"${targetLabel(targetKey)}" encontrado após reload. Próximo clique em ~${settings.intervalMinutes} min.`
-          : `"${targetLabel(targetKey)}" encontrado após reload.`,
+      await upsertJob(tabId, {
+        lastStatus: `"${probe.label || targetLabel(job.targetKey)}" pronto. Próximo clique no intervalo.`,
         lastOk: true,
       });
     } else {
-      await setSettings({
-        lastStatus: `Reload ok, mas "${targetLabel(targetKey)}" ainda não apareceu. Mantém a aba aberta.`,
+      await upsertJob(tabId, {
+        lastStatus: `"${targetLabel(job.targetKey)}" ainda não apareceu após reload.`,
         lastOk: false,
       });
     }
   } catch (err) {
     if (!isNavigationError(err)) {
-      await setSettings({
+      await upsertJob(tabId, {
         lastStatus: `Após reload: ${err.message || err}`,
         lastOk: false,
       });
@@ -228,138 +318,174 @@ async function recoverAfterReload(tabId) {
   }
 }
 
+async function buildPopupView() {
+  const state = await getState();
+  const activeTab = await getActiveTab();
+  const activeJob = activeTab?.id != null ? state.jobs[String(activeTab.id)] || null : null;
+  const jobs = Object.values(state.jobs || {}).filter(Boolean);
+
+  return {
+    intervalMinutes: state.intervalMinutes,
+    activeTabId: activeTab?.id ?? null,
+    activeTabTitle: activeTab?.title || null,
+    activeTabUrl: activeTab?.url || null,
+    activeJob,
+    jobs,
+    enabledCount: jobs.filter((j) => j.enabled).length,
+  };
+}
+
 chrome.runtime.onInstalled.addListener(async () => {
-  const settings = await getSettings();
-  if (settings.enabled) {
-    await scheduleAlarm(settings.intervalMinutes);
-  }
+  await syncAlarm();
 });
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name !== "triar-auto-click") return;
-  const settings = await getSettings();
-  if (!settings.enabled) return;
-  await runClickOnTargetTab();
+  await runAllEnabledJobs();
 });
 
-// Após o APEX recarregar a página, reinjeta e espera o botão voltar
-chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-  if (changeInfo.status !== "complete") return;
-  recoverAfterReload(tabId);
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.status === "complete") {
+    recoverAfterReload(tabId);
+  }
+  if (changeInfo.url || changeInfo.title) {
+    getState().then((state) => {
+      if (!state.jobs[String(tabId)]) return;
+      upsertJob(tabId, {
+        url: tab.url || null,
+        title: tab.title || null,
+      });
+    });
+  }
 });
 
 chrome.tabs.onRemoved.addListener(async (tabId) => {
-  const settings = await getSettings();
-  if (settings.trackedTabId === tabId) {
-    await setSettings({
-      trackedTabId: null,
-      trackedTabUrl: null,
-      lastStatus: settings.enabled
-        ? "Aba monitorada foi fechada. Abra o sistema e Inicie de novo."
-        : settings.lastStatus,
-      lastOk: settings.enabled ? false : settings.lastOk,
-    });
+  const state = await getState();
+  if (state.jobs[String(tabId)]) {
+    await removeJob(tabId);
+    await syncAlarm();
   }
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
     if (message.type === "CONTENT_READY") {
-      const tabId = sender.tab?.id;
-      if (tabId != null) {
-        const settings = await getSettings();
-        if (settings.enabled && (settings.trackedTabId == null || settings.trackedTabId === tabId)) {
-          await rememberTab(sender.tab);
-        }
-      }
       sendResponse({ ok: true });
       return;
     }
 
     if (message.type === "GET_STATE") {
-      sendResponse(await getSettings());
+      sendResponse(await buildPopupView());
       return;
     }
 
     if (message.type === "START") {
+      const tab = await getActiveTab();
+      if (!tab?.id || isRestrictedUrl(tab.url)) {
+        sendResponse({
+          ...(await buildPopupView()),
+          error: "Abra a aba do sistema APEX e tente de novo.",
+        });
+        return;
+      }
+
       const intervalMinutes = Math.max(1, Number(message.intervalMinutes) || 5);
       const targetKey = resolveTargetKey(message.targetKey);
-      const tab = await getTargetTab();
-      if (tab) await rememberTab(tab);
+      await setState({ intervalMinutes });
 
-      await setSettings({
+      await upsertJob(tab.id, {
         enabled: true,
-        intervalMinutes,
         targetKey,
-        lastStatus: `Automação ativa em "${targetLabel(targetKey)}"…`,
+        url: tab.url || null,
+        title: tab.title || null,
+        lastStatus: `Ativo nesta aba: ${targetLabel(targetKey)}`,
       });
-      await scheduleAlarm(intervalMinutes);
-      const afterClick = await runClickOnTargetTab();
-      await setSettings({
-        lastStatus: afterClick.lastOk
-          ? `Ativo (${targetLabel(targetKey)}) — próximo clique em ~${intervalMinutes} min`
-          : afterClick.lastStatus,
-      });
-      sendResponse(await getSettings());
+      await syncAlarm();
+
+      const job = (await getState()).jobs[String(tab.id)];
+      const after = await runJob(job);
+      if (after?.lastOk) {
+        await upsertJob(tab.id, {
+          lastStatus: `Ativo (${targetLabel(targetKey)}) — próximo em ~${intervalMinutes} min`,
+        });
+      }
+      sendResponse(await buildPopupView());
       return;
     }
 
     if (message.type === "STOP") {
-      await clearAlarm();
-      sendResponse(
-        await setSettings({
+      const tab = await getActiveTab();
+      if (tab?.id && (await getState()).jobs[String(tab.id)]) {
+        await upsertJob(tab.id, {
           enabled: false,
-          lastStatus: "Automação pausada.",
-        })
-      );
+          lastStatus: "Pausado nesta aba.",
+        });
+      }
+      await syncAlarm();
+      sendResponse(await buildPopupView());
+      return;
+    }
+
+    if (message.type === "STOP_ALL") {
+      const state = await getState();
+      const jobs = { ...state.jobs };
+      for (const key of Object.keys(jobs)) {
+        jobs[key] = { ...jobs[key], enabled: false, lastStatus: "Pausado." };
+      }
+      await setState({ jobs });
+      await syncAlarm();
+      sendResponse(await buildPopupView());
       return;
     }
 
     if (message.type === "CLICK_NOW") {
-      const tab = await getTargetTab();
-      if (tab) await rememberTab(tab);
-      const result = await runClickOnTargetTab();
-      sendResponse(result);
+      const tab = await getActiveTab();
+      if (!tab?.id || isRestrictedUrl(tab.url)) {
+        sendResponse({
+          ...(await buildPopupView()),
+          error: "Abra a aba do sistema APEX.",
+        });
+        return;
+      }
+      const targetKey = resolveTargetKey(message.targetKey);
+      await upsertJob(tab.id, {
+        targetKey,
+        url: tab.url || null,
+        title: tab.title || null,
+      });
+      await runJob((await getState()).jobs[String(tab.id)]);
+      sendResponse(await buildPopupView());
       return;
     }
 
     if (message.type === "SAVE_INTERVAL") {
       const intervalMinutes = Math.max(1, Number(message.intervalMinutes) || 5);
-      const settings = await setSettings({ intervalMinutes });
-      if (settings.enabled) await scheduleAlarm(intervalMinutes);
-      sendResponse(settings);
+      await setState({ intervalMinutes });
+      await syncAlarm();
+      sendResponse(await buildPopupView());
       return;
     }
 
     if (message.type === "SAVE_TARGET") {
+      const tab = await getActiveTab();
       const targetKey = resolveTargetKey(message.targetKey);
-      sendResponse(await setSettings({ targetKey }));
+      if (tab?.id) {
+        await upsertJob(tab.id, { targetKey });
+      }
+      sendResponse(await buildPopupView());
       return;
     }
 
     if (message.type === "PROBE_ACTIVE_TAB") {
-      const tab = await getTargetTab();
-      if (!tab?.id) {
-        sendResponse({ found: false, message: "Sem aba disponível." });
+      const tab = await getActiveTab();
+      if (!tab?.id || isRestrictedUrl(tab.url)) {
+        sendResponse({ found: false, message: "Sem aba APEX ativa." });
         return;
       }
-      const ok = await ensureContentScript(tab.id);
-      if (!ok) {
-        sendResponse({ found: false, message: "Não foi possível inspecionar a página." });
-        return;
-      }
-      const settings = await getSettings();
-      const targetKey = resolveTargetKey(message.targetKey || settings.targetKey);
-      try {
-        const probe = await chrome.tabs.sendMessage(tab.id, {
-          type: "PROBE_BUTTON",
-          targetKey,
-          waitMs: 8000,
-        });
-        sendResponse(probe);
-      } catch (err) {
-        sendResponse({ found: false, message: err.message || String(err) });
-      }
+      const targetKey = resolveTargetKey(message.targetKey);
+      const probe = await probeTab(tab.id, targetKey, PROBE_WAIT_MS);
+      sendResponse(probe);
+      return;
     }
   })();
 

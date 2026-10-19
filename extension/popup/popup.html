@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Triar Processos Auto</title>
+  <title>Triar Auto</title>
   <link rel="stylesheet" href="fonts.css" />
   <link rel="stylesheet" href="popup.css" />
 </head>
@@ -22,10 +22,15 @@
       </div>
     </header>
 
-    <p class="lede">Escolha o alvo na página do sistema e dispare o clique no intervalo que você definir.</p>
+    <p class="lede">Cada aba guarda a própria ação. Abra a aba do sistema, escolha o alvo e inicie.</p>
+
+    <section class="probe" id="tabBox">
+      <span class="probe-label">Aba atual</span>
+      <strong id="tabInfo">—</strong>
+    </section>
 
     <label class="field">
-      <span>Ação automática</span>
+      <span>Ação desta aba</span>
       <select id="targetSelect">
         <option value="triar">TRIAR PROCESSOS</option>
         <option value="despacho">Criar Despacho</option>
@@ -37,7 +42,7 @@
         <span class="dot" id="statusDot" data-state="idle"></span>
         <div>
           <p class="status-label" id="statusLabel">Pausado</p>
-          <p class="status-detail" id="statusDetail">Pronto para iniciar</p>
+          <p class="status-detail" id="statusDetail">Pronto para iniciar nesta aba</p>
         </div>
       </div>
       <div class="meta">
@@ -53,12 +58,17 @@
     </section>
 
     <section class="probe" id="probeBox">
-      <span class="probe-label">Alvo na aba atual</span>
+      <span class="probe-label">Detecção nesta aba</span>
       <strong id="probeResult">Verificando…</strong>
     </section>
 
+    <section class="probe" id="jobsBox">
+      <span class="probe-label">Abas ativas</span>
+      <strong id="jobsResult">Nenhuma</strong>
+    </section>
+
     <label class="field">
-      <span>Intervalo (minutos)</span>
+      <span>Intervalo (minutos) — global</span>
       <div class="interval-row">
         <input type="range" id="intervalRange" min="1" max="60" value="5" />
         <input type="number" id="intervalInput" min="1" max="60" value="5" />
@@ -66,9 +76,11 @@
     </label>
 
     <div class="actions">
-      <button type="button" class="btn primary" id="toggleBtn">Iniciar</button>
+      <button type="button" class="btn primary" id="toggleBtn">Iniciar nesta aba</button>
       <button type="button" class="btn ghost" id="clickNowBtn">Clicar agora</button>
     </div>
+
+    <button type="button" class="btn ghost full" id="stopAllBtn">Pausar todas as abas</button>
 
     <footer class="credit">
       <span>Desenvolvido por</span>

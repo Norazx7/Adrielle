@@ -1,7 +1,7 @@
 (() => {
   if (window.__triarAutoExtension?.booted) return;
 
-  const DEFAULT_WAIT_MS = 60000;
+  const DEFAULT_WAIT_MS = 90000;
 
   const TARGETS = {
     triar: {
@@ -9,21 +9,19 @@
       name: "TRIAR PROCESSOS",
       selectors: [
         '[data-otel-label="TRIAR_NIVEL_12"]',
+        '[data-otel-label*="TRIAR" i]',
         '#B68314861501381838',
       ],
-      texts: ["TRIAR PROCESSOS"],
-      preferButtons: true,
+      texts: ["TRIAR PROCESSOS", "TRIAR PROCESSO"],
     },
     despacho: {
       key: "despacho",
       name: "Criar Despacho",
       selectors: [
         '[data-otel-label*="DESPACHO" i]',
-        'button.t-Button',
-        'a.t-Button',
+        '[data-otel-label*="CRIAR_DESPACHO" i]',
       ],
-      texts: ["CRIAR DESPACHO", "CRIAÇÃO DE DESPACHO", "CRIACAO DE DESPACHO"],
-      preferButtons: true,
+      texts: ["CRIAR DESPACHO", "CRIACAO DE DESPACHO", "CRIAÇÃO DE DESPACHO"],
     },
   };
 
@@ -31,6 +29,7 @@
     return String(value || "")
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\u00a0/g, " ")
       .replace(/\s+/g, " ")
       .trim()
       .toUpperCase();
@@ -40,102 +39,166 @@
     return TARGETS[targetKey] || TARGETS.triar;
   }
 
-  function isVisible(el) {
-    if (!el) return false;
+  function isProbablyVisible(el) {
+    if (!el || !el.isConnected) return false;
     try {
       const style = window.getComputedStyle(el);
-      if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) === 0) {
-        return false;
-      }
+      if (style.display === "none" || style.visibility === "hidden") return false;
+      if (Number(style.opacity) === 0) return false;
       const rect = el.getBoundingClientRect();
+      // Aceita mesmo fora da viewport (só precisa existir e ter tamanho)
       return rect.width > 0 && rect.height > 0;
     } catch {
-      return false;
+      return true;
     }
   }
 
-  function elementText(el) {
+  function rawText(el) {
     if (!el) return "";
-    const label = el.querySelector?.(".t-Button-label, .a-TreeView-label, .t-Header-navLinkLabel, span");
-    return (label?.textContent || el.getAttribute?.("title") || el.getAttribute?.("aria-label") || el.textContent || "").trim();
-  }
-
-  function matchesTargetText(el, target) {
-    const text = normalizeText(elementText(el));
-    return target.texts.some((t) => text.includes(normalizeText(t)));
-  }
-
-  function findClickableAncestor(el) {
-    let node = el;
-    for (let i = 0; i < 6 && node; i += 1) {
-      if (node.matches?.("a, button, [role='button'], [onclick], .t-Button, .t-Header-navLink")) {
-        return node;
-      }
-      node = node.parentElement;
+    try {
+      const label = el.querySelector?.(":scope > .t-Button-label, .t-Button-label");
+      if (label?.textContent) return label.textContent;
+      return (
+        el.getAttribute?.("data-otel-label") ||
+        el.getAttribute?.("title") ||
+        el.getAttribute?.("aria-label") ||
+        el.textContent ||
+        ""
+      );
+    } catch {
+      return el.textContent || "";
     }
-    return el;
   }
 
-  function findInDocument(doc, target) {
-    if (!doc) return null;
+  function matchesTexts(el, texts) {
+    const text = normalizeText(rawText(el));
+    if (!text) return false;
+    return texts.some((t) => text.includes(normalizeText(t)));
+  }
 
+  function findClickable(el) {
+    if (!el) return null;
+    if (el.matches?.("button, a, input[type='button'], input[type='submit'], [role='button'], .t-Button")) {
+      return el;
+    }
+    const closest = el.closest?.("button, a, .t-Button, [role='button'], [onclick]");
+    return closest || el;
+  }
+
+  function scoreCandidate(el, target) {
+    let score = 0;
+    if (!el) return -1;
+    if (matchesTexts(el, target.texts)) score += 50;
+    if (el.matches?.("button, .t-Button, a.t-Button")) score += 20;
+    if (el.querySelector?.(".t-Button-label")) score += 15;
+    if (isProbablyVisible(el)) score += 25;
+    if (el.disabled || el.getAttribute?.("aria-disabled") === "true") score -= 40;
+    const id = el.id || "";
+    const otel = el.getAttribute?.("data-otel-label") || "";
+    if (target.key === "triar" && /TRIAR/i.test(otel + id)) score += 30;
+    if (target.key === "despacho" && /DESPACHO/i.test(otel + id)) score += 30;
+    return score;
+  }
+
+  function collectFromDocument(doc, target) {
+    if (!doc) return [];
+    const found = [];
+
+    // 1) Seletores específicos
     for (const selector of target.selectors) {
       try {
-        const nodes = doc.querySelectorAll(selector);
-        for (const el of nodes) {
-          if (!isVisible(el)) continue;
-          if (matchesTargetText(el, target) || selector.includes("TRIAR_NIVEL_12") || selector.startsWith("#")) {
-            return findClickableAncestor(el);
-          }
-        }
+        doc.querySelectorAll(selector).forEach((el) => found.push(el));
       } catch {
-        /* ignore invalid selectors */
+        /* ignore */
       }
     }
 
-    const query = target.preferButtons
-      ? "button.t-Button, button, a.t-Button, a"
-      : "a, button, [role='button'], .t-Header-navLink, .a-TreeView-label, li, span";
-
+    // 2) Todos os labels de botão APEX
     try {
-      const nodes = doc.querySelectorAll(query);
-      for (const el of nodes) {
-        if (!matchesTargetText(el, target)) continue;
-        const clickable = findClickableAncestor(el);
-        if (isVisible(clickable) || isVisible(el)) return isVisible(clickable) ? clickable : el;
+      doc.querySelectorAll(".t-Button-label").forEach((label) => {
+        if (matchesTexts(label, target.texts)) found.push(label);
+      });
+    } catch {
+      /* ignore */
+    }
+
+    // 3) Botões / links genéricos
+    try {
+      doc.querySelectorAll("button, a, .t-Button, [role='button'], input[type='button']").forEach((el) => {
+        if (matchesTexts(el, target.texts)) found.push(el);
+      });
+    } catch {
+      /* ignore */
+    }
+
+    // 4) Varredura por texto (TreeWalker) — último recurso
+    try {
+      const walker = doc.createTreeWalker(doc.body || doc, NodeFilter.SHOW_ELEMENT);
+      let node = walker.currentNode;
+      while (node) {
+        if (node.childElementCount === 0 || node.classList?.contains("t-Button-label")) {
+          if (matchesTexts(node, target.texts)) found.push(node);
+        }
+        node = walker.nextNode();
       }
     } catch {
       /* ignore */
     }
 
-    return null;
+    return found;
   }
 
-  function findTargetElement(targetKey, rootDoc = document, depth = 0) {
-    if (depth > 8) return null;
-    const target = getTarget(targetKey);
-    const direct = findInDocument(rootDoc, target);
-    if (direct) return direct;
+  function unique(nodes) {
+    return Array.from(new Set(nodes.filter(Boolean)));
+  }
 
+  function findInDocument(doc, target) {
+    const candidates = unique(collectFromDocument(doc, target))
+      .map((el) => findClickable(el))
+      .filter(Boolean);
+
+    if (!candidates.length) return null;
+
+    candidates.sort((a, b) => scoreCandidate(b, target) - scoreCandidate(a, target));
+    const best = candidates[0];
+    return scoreCandidate(best, target) > 0 ? best : null;
+  }
+
+  function listSameOriginDocs(rootDoc = document, depth = 0, acc = []) {
+    if (!rootDoc || depth > 10) return acc;
+    acc.push(rootDoc);
     let frames = [];
     try {
       frames = Array.from(rootDoc.querySelectorAll("iframe, frame"));
     } catch {
-      return null;
+      return acc;
     }
-
     for (const frame of frames) {
       try {
         const doc = frame.contentDocument || frame.contentWindow?.document;
-        if (!doc) continue;
-        const found = findTargetElement(targetKey, doc, depth + 1);
-        if (found) return found;
+        if (doc) listSameOriginDocs(doc, depth + 1, acc);
       } catch {
         /* cross-origin */
       }
     }
+    return acc;
+  }
 
-    return null;
+  function findTargetElement(targetKey) {
+    const target = getTarget(targetKey);
+    const docs = listSameOriginDocs(document);
+    let best = null;
+    let bestScore = -1;
+    for (const doc of docs) {
+      const el = findInDocument(doc, target);
+      if (!el) continue;
+      const score = scoreCandidate(el, target);
+      if (score > bestScore) {
+        best = el;
+        bestScore = score;
+      }
+    }
+    return best;
   }
 
   function waitForTarget(targetKey, timeoutMs = DEFAULT_WAIT_MS) {
@@ -152,7 +215,11 @@
       const finish = (el) => {
         if (done) return;
         done = true;
-        observer.disconnect();
+        try {
+          observer.disconnect();
+        } catch {
+          /* ignore */
+        }
         clearInterval(poll);
         resolve(el);
       };
@@ -172,21 +239,29 @@
           childList: true,
           subtree: true,
           attributes: true,
+          characterData: true,
         });
       } catch {
         /* ignore */
       }
 
-      const poll = setInterval(check, 400);
+      // Observa iframes same-origin que carregarem depois
+      const poll = setInterval(check, 300);
       check();
     });
   }
 
   function clickElement(el) {
+    const win = el.ownerDocument?.defaultView || window;
+
     try {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.scrollIntoView({ behavior: "instant", block: "center", inline: "center" });
     } catch {
-      /* ignore */
+      try {
+        el.scrollIntoView(true);
+      } catch {
+        /* ignore */
+      }
     }
 
     try {
@@ -195,34 +270,49 @@
       /* ignore */
     }
 
-    const events = ["pointerdown", "mousedown", "pointerup", "mouseup", "click"];
-    for (const type of events) {
+    // Simula interação real do APEX (jQuery/apex.event)
+    const base = { bubbles: true, cancelable: true, view: win, buttons: 1, composed: true };
+    for (const type of ["pointerover", "mouseover", "pointerenter", "mouseenter", "pointerdown", "mousedown", "pointerup", "mouseup", "click"]) {
       try {
-        el.dispatchEvent(
-          new MouseEvent(type, {
-            bubbles: true,
-            cancelable: true,
-            view: el.ownerDocument?.defaultView || window,
-            buttons: 1,
-          })
-        );
+        el.dispatchEvent(new MouseEvent(type, base));
       } catch {
         /* ignore */
       }
     }
 
-    if (typeof el.click === "function") el.click();
+    try {
+      if (typeof el.click === "function") el.click();
+    } catch {
+      /* ignore */
+    }
+
+    // Fallback APEX: se houver id, tenta apex.event.trigger
+    try {
+      if (el.id && win.apex?.event?.trigger) {
+        win.apex.event.trigger(`#${CSS.escape(el.id)}`, "click");
+      }
+    } catch {
+      /* ignore */
+    }
+
+    // Fallback jQuery
+    try {
+      if (win.jQuery) win.jQuery(el).trigger("click");
+    } catch {
+      /* ignore */
+    }
   }
 
   function flashFeedback(el) {
     try {
-      const prev = el.style.outline;
+      const prevOutline = el.style.outline;
+      const prevOffset = el.style.outlineOffset;
       el.style.outline = "3px solid #e10600";
-      el.style.outlineOffset = "3px";
+      el.style.outlineOffset = "4px";
       setTimeout(() => {
-        el.style.outline = prev;
-        el.style.outlineOffset = "";
-      }, 900);
+        el.style.outline = prevOutline;
+        el.style.outlineOffset = prevOffset;
+      }, 1200);
     } catch {
       /* ignore */
     }
@@ -234,18 +324,21 @@
     if (!el) {
       return {
         ok: false,
-        message: `"${target.name}" não encontrado (mesmo após aguardar o reload).`,
         found: false,
         targetKey: target.key,
+        frameHref: location.href,
+        message: `"${target.name}" não encontrado neste frame.`,
       };
     }
 
     if (el.disabled || el.getAttribute("aria-disabled") === "true") {
       return {
         ok: false,
-        message: `"${target.name}" encontrado, mas está desabilitado.`,
         found: true,
         targetKey: target.key,
+        frameHref: location.href,
+        label: rawText(el).trim(),
+        message: `"${target.name}" encontrado, mas está desabilitado.`,
       };
     }
 
@@ -254,12 +347,13 @@
 
     return {
       ok: true,
-      message: `Clique em "${target.name}" executado. Aguardando possível reload/navegação…`,
       found: true,
       targetKey: target.key,
       buttonId: el.id || null,
-      label: elementText(el),
+      label: rawText(el).trim(),
+      frameHref: location.href,
       expectsReload: true,
+      message: `Clique em "${rawText(el).trim() || target.name}" OK.`,
     };
   }
 
@@ -271,9 +365,10 @@
       targetKey: target.key,
       targetName: target.name,
       buttonId: el?.id || null,
-      label: el ? elementText(el) : null,
+      label: el ? rawText(el).trim() : null,
       disabled: el ? Boolean(el.disabled || el.getAttribute("aria-disabled") === "true") : null,
-      url: location.href,
+      frameHref: location.href,
+      visible: el ? isProbablyVisible(el) : false,
     };
   }
 
@@ -298,33 +393,32 @@
       return true;
     }
 
-    if (message.type === "LIST_TARGETS") {
-      sendResponse(
-        Object.values(TARGETS).map((t) => ({
-          key: t.key,
-          name: t.name,
-        }))
-      );
-      return;
-    }
-
     if (message.type === "PING") {
-      sendResponse({ ok: true, href: location.href });
+      sendResponse({
+        ok: true,
+        href: location.href,
+        isTop: window.top === window,
+        version: "1.3.0",
+      });
       return;
     }
   });
 
   try {
-    chrome.runtime.sendMessage({ type: "CONTENT_READY", href: location.href });
+    chrome.runtime.sendMessage({
+      type: "CONTENT_READY",
+      href: location.href,
+      isTop: window.top === window,
+    });
   } catch {
     /* ignore */
   }
 
   window.__triarAutoExtension = {
-    version: "1.2.1",
+    version: "1.3.0",
     booted: true,
     targets: TARGETS,
-    probe: (key) => probe(key || "triar", 0),
     findTargetElement,
+    probe: (key) => probe(key || "triar", 0),
   };
 })();

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Triar Auto — Processos & Despacho",
-  "version": "1.2.1",
-  "description": "Clica automaticamente em TRIAR PROCESSOS ou Criar Despacho no intervalo configurado. Continua após reload.",
+  "version": "1.3.0",
+  "description": "Automação multi-aba: TRIAR PROCESSOS e Criar Despacho, com detecção robusta em todos os frames.",
   "author": "Witório Bandeira",
   "icons": {
     "16": "icons/icon16.png",
@@ -12,7 +12,7 @@
   },
   "action": {
     "default_popup": "popup/popup.html",
-    "default_title": "Triar Processos Auto",
+    "default_title": "Triar Auto",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",
@@ -22,14 +22,15 @@
   "background": {
     "service_worker": "background/service-worker.js"
   },
-  "permissions": ["storage", "alarms", "activeTab", "scripting", "tabs"],
+  "permissions": ["storage", "alarms", "activeTab", "scripting", "tabs", "webNavigation"],
   "host_permissions": ["<all_urls>"],
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
       "js": ["content/content.js"],
       "run_at": "document_idle",
-      "all_frames": true
+      "all_frames": true,
+      "match_about_blank": true
     }
   ]
 }
