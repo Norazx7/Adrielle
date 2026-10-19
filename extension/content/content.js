@@ -16,14 +16,14 @@
     },
     despacho: {
       key: "despacho",
-      name: "Criação de Despacho",
+      name: "Criar Despacho",
       selectors: [
         '[data-otel-label*="DESPACHO" i]',
-        'a[title*="Criação de Despacho" i]',
-        'a[aria-label*="Criação de Despacho" i]',
+        'button.t-Button',
+        'a.t-Button',
       ],
-      texts: ["CRIAÇÃO DE DESPACHO", "CRIACAO DE DESPACHO"],
-      preferButtons: false,
+      texts: ["CRIAR DESPACHO", "CRIAÇÃO DE DESPACHO", "CRIACAO DE DESPACHO"],
+      preferButtons: true,
     },
   };
 
@@ -321,7 +321,7 @@
   }
 
   window.__triarAutoExtension = {
-    version: "1.2.0",
+    version: "1.2.1",
     booted: true,
     targets: TARGETS,
     probe: (key) => probe(key || "triar", 0),

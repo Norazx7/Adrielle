@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Triar Auto — Processos & Despacho",
-  "version": "1.2.0",
-  "description": "Clica automaticamente em TRIAR PROCESSOS ou Criação de Despacho no intervalo configurado. Continua após reload.",
+  "version": "1.2.1",
+  "description": "Clica automaticamente em TRIAR PROCESSOS ou Criar Despacho no intervalo configurado. Continua após reload.",
   "author": "Witório Bandeira",
   "icons": {
     "16": "icons/icon16.png",

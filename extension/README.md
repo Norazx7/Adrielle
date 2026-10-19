@@ -3,7 +3,7 @@
 Extensão Chrome (Manifest V3) que clica automaticamente, no intervalo configurado (padrão: 5 minutos), em:
 
 - **TRIAR PROCESSOS** (botão da tela de triagem)
-- **Criação de Despacho** (item do menu superior)
+- **Criar Despacho** (botão `.t-Button-label`)
 
 Escolha o alvo no popup. Depois de reload/navegação, a extensão **reinjeta o script**, espera o alvo voltar (até 60s) e segue o ciclo.
 

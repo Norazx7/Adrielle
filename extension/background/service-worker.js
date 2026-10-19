@@ -1,6 +1,6 @@
 const TARGET_NAMES = {
   triar: "TRIAR PROCESSOS",
-  despacho: "Criação de Despacho",
+  despacho: "Criar Despacho",
 };
 
 const DEFAULT_SETTINGS = {
