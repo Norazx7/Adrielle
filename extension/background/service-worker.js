@@ -1,6 +1,12 @@
+const TARGET_NAMES = {
+  triar: "TRIAR PROCESSOS",
+  despacho: "Criação de Despacho",
+};
+
 const DEFAULT_SETTINGS = {
   enabled: false,
   intervalMinutes: 5,
+  targetKey: "triar",
   lastClickAt: null,
   lastStatus: "Aguardando início",
   lastOk: null,
@@ -8,6 +14,14 @@ const DEFAULT_SETTINGS = {
   trackedTabId: null,
   trackedTabUrl: null,
 };
+
+function resolveTargetKey(value) {
+  return value === "despacho" ? "despacho" : "triar";
+}
+
+function targetLabel(key) {
+  return TARGET_NAMES[resolveTargetKey(key)] || TARGET_NAMES.triar;
+}
 
 const WAIT_AFTER_RELOAD_MS = 60000;
 
@@ -95,10 +109,12 @@ function isNavigationError(err) {
   );
 }
 
-async function sendClick(tabId) {
+async function sendClick(tabId, targetKey) {
+  const key = resolveTargetKey(targetKey);
   try {
     return await chrome.tabs.sendMessage(tabId, {
-      type: "CLICK_TRIAR",
+      type: "CLICK_TARGET",
+      targetKey: key,
       waitMs: WAIT_AFTER_RELOAD_MS,
     });
   } catch (err) {
@@ -107,7 +123,8 @@ async function sendClick(tabId) {
         ok: true,
         found: true,
         expectsReload: true,
-        message: "Clique enviado; a página recarregou (normal após triar).",
+        targetKey: key,
+        message: `Clique em "${targetLabel(key)}" enviado; a página navegou/recarregou.`,
       };
     }
     throw err;
@@ -140,9 +157,12 @@ async function runClickOnTargetTab() {
     });
   }
 
+  const current = await getSettings();
+  const targetKey = resolveTargetKey(current.targetKey);
+
   let result;
   try {
-    result = await sendClick(tab.id);
+    result = await sendClick(tab.id, targetKey);
   } catch (err) {
     return setSettings({
       lastStatus: `Falha ao comunicar com a página: ${err.message || err}`,
@@ -150,7 +170,6 @@ async function runClickOnTargetTab() {
     });
   }
 
-  const current = await getSettings();
   const ok = Boolean(result?.ok);
   return setSettings({
     lastClickAt: Date.now(),
@@ -174,26 +193,28 @@ async function recoverAfterReload(tabId) {
     return;
   }
 
+  const targetKey = resolveTargetKey(settings.targetKey);
   await setSettings({
-    lastStatus: "Página recarregou — aguardando o botão TRIAR PROCESSOS…",
+    lastStatus: `Página recarregou — aguardando "${targetLabel(targetKey)}"…`,
   });
 
   try {
     const probe = await chrome.tabs.sendMessage(tabId, {
       type: "PROBE_BUTTON",
+      targetKey,
       waitMs: WAIT_AFTER_RELOAD_MS,
     });
 
     if (probe?.found) {
       await setSettings({
         lastStatus: settings.enabled
-          ? `Botão encontrado após reload. Próximo clique em ~${settings.intervalMinutes} min.`
-          : "Botão encontrado após reload.",
+          ? `"${targetLabel(targetKey)}" encontrado após reload. Próximo clique em ~${settings.intervalMinutes} min.`
+          : `"${targetLabel(targetKey)}" encontrado após reload.`,
         lastOk: true,
       });
     } else {
       await setSettings({
-        lastStatus: "Reload ok, mas o botão ainda não apareceu. Mantém a aba aberta.",
+        lastStatus: `Reload ok, mas "${targetLabel(targetKey)}" ainda não apareceu. Mantém a aba aberta.`,
         lastOk: false,
       });
     }
@@ -262,19 +283,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     if (message.type === "START") {
       const intervalMinutes = Math.max(1, Number(message.intervalMinutes) || 5);
+      const targetKey = resolveTargetKey(message.targetKey);
       const tab = await getTargetTab();
       if (tab) await rememberTab(tab);
 
       await setSettings({
         enabled: true,
         intervalMinutes,
-        lastStatus: "Automação ativa. Localizando botão (aguarda reload se precisar)…",
+        targetKey,
+        lastStatus: `Automação ativa em "${targetLabel(targetKey)}"…`,
       });
       await scheduleAlarm(intervalMinutes);
       const afterClick = await runClickOnTargetTab();
       await setSettings({
         lastStatus: afterClick.lastOk
-          ? `Ativo — próximo clique em ~${intervalMinutes} min (sobrevive a reload)`
+          ? `Ativo (${targetLabel(targetKey)}) — próximo clique em ~${intervalMinutes} min`
           : afterClick.lastStatus,
       });
       sendResponse(await getSettings());
@@ -308,6 +331,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return;
     }
 
+    if (message.type === "SAVE_TARGET") {
+      const targetKey = resolveTargetKey(message.targetKey);
+      sendResponse(await setSettings({ targetKey }));
+      return;
+    }
+
     if (message.type === "PROBE_ACTIVE_TAB") {
       const tab = await getTargetTab();
       if (!tab?.id) {
@@ -319,9 +348,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ found: false, message: "Não foi possível inspecionar a página." });
         return;
       }
+      const settings = await getSettings();
+      const targetKey = resolveTargetKey(message.targetKey || settings.targetKey);
       try {
         const probe = await chrome.tabs.sendMessage(tab.id, {
           type: "PROBE_BUTTON",
+          targetKey,
           waitMs: 8000,
         });
         sendResponse(probe);

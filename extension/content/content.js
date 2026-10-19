@@ -1,14 +1,44 @@
 (() => {
   if (window.__triarAutoExtension?.booted) return;
 
-  const BUTTON_SELECTORS = [
-    '[data-otel-label="TRIAR_NIVEL_12"]',
-    '#B68314861501381838',
-    'button.t-Button--hot',
-  ];
-
-  const LABEL_TEXT = "TRIAR PROCESSOS";
   const DEFAULT_WAIT_MS = 60000;
+
+  const TARGETS = {
+    triar: {
+      key: "triar",
+      name: "TRIAR PROCESSOS",
+      selectors: [
+        '[data-otel-label="TRIAR_NIVEL_12"]',
+        '#B68314861501381838',
+      ],
+      texts: ["TRIAR PROCESSOS"],
+      preferButtons: true,
+    },
+    despacho: {
+      key: "despacho",
+      name: "Criação de Despacho",
+      selectors: [
+        '[data-otel-label*="DESPACHO" i]',
+        'a[title*="Criação de Despacho" i]',
+        'a[aria-label*="Criação de Despacho" i]',
+      ],
+      texts: ["CRIAÇÃO DE DESPACHO", "CRIACAO DE DESPACHO"],
+      preferButtons: false,
+    },
+  };
+
+  function normalizeText(value) {
+    return String(value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toUpperCase();
+  }
+
+  function getTarget(targetKey) {
+    return TARGETS[targetKey] || TARGETS.triar;
+  }
 
   function isVisible(el) {
     if (!el) return false;
@@ -24,36 +54,55 @@
     }
   }
 
-  function matchesLabel(btn) {
-    const label = btn.querySelector?.(".t-Button-label");
-    const text = (label?.textContent || btn.textContent || "").trim().toUpperCase();
-    return text.includes(LABEL_TEXT);
+  function elementText(el) {
+    if (!el) return "";
+    const label = el.querySelector?.(".t-Button-label, .a-TreeView-label, .t-Header-navLinkLabel, span");
+    return (label?.textContent || el.getAttribute?.("title") || el.getAttribute?.("aria-label") || el.textContent || "").trim();
   }
 
-  function findInDocument(doc) {
+  function matchesTargetText(el, target) {
+    const text = normalizeText(elementText(el));
+    return target.texts.some((t) => text.includes(normalizeText(t)));
+  }
+
+  function findClickableAncestor(el) {
+    let node = el;
+    for (let i = 0; i < 6 && node; i += 1) {
+      if (node.matches?.("a, button, [role='button'], [onclick], .t-Button, .t-Header-navLink")) {
+        return node;
+      }
+      node = node.parentElement;
+    }
+    return el;
+  }
+
+  function findInDocument(doc, target) {
     if (!doc) return null;
 
-    for (const selector of BUTTON_SELECTORS) {
+    for (const selector of target.selectors) {
       try {
         const nodes = doc.querySelectorAll(selector);
         for (const el of nodes) {
-          if (isVisible(el) && (selector.includes("TRIAR") || matchesLabel(el) || el.getAttribute("data-otel-label") === "TRIAR_NIVEL_12")) {
-            return el;
-          }
-          // hot button without label match: still accept if otel/id selectors hit
-          if (isVisible(el) && (selector.startsWith("[") || selector.startsWith("#"))) {
-            return el;
+          if (!isVisible(el)) continue;
+          if (matchesTargetText(el, target) || selector.includes("TRIAR_NIVEL_12") || selector.startsWith("#")) {
+            return findClickableAncestor(el);
           }
         }
       } catch {
-        /* ignore bad selectors in odd docs */
+        /* ignore invalid selectors */
       }
     }
 
+    const query = target.preferButtons
+      ? "button.t-Button, button, a.t-Button, a"
+      : "a, button, [role='button'], .t-Header-navLink, .a-TreeView-label, li, span";
+
     try {
-      const buttons = doc.querySelectorAll("button.t-Button, button, a.t-Button");
-      for (const btn of buttons) {
-        if (matchesLabel(btn) && isVisible(btn)) return btn;
+      const nodes = doc.querySelectorAll(query);
+      for (const el of nodes) {
+        if (!matchesTargetText(el, target)) continue;
+        const clickable = findClickableAncestor(el);
+        if (isVisible(clickable) || isVisible(el)) return isVisible(clickable) ? clickable : el;
       }
     } catch {
       /* ignore */
@@ -62,36 +111,36 @@
     return null;
   }
 
-  function findTriarButton(rootDoc = document, depth = 0) {
+  function findTargetElement(targetKey, rootDoc = document, depth = 0) {
     if (depth > 8) return null;
-
-    const direct = findInDocument(rootDoc);
+    const target = getTarget(targetKey);
+    const direct = findInDocument(rootDoc, target);
     if (direct) return direct;
 
-    let iframes = [];
+    let frames = [];
     try {
-      iframes = Array.from(rootDoc.querySelectorAll("iframe, frame"));
+      frames = Array.from(rootDoc.querySelectorAll("iframe, frame"));
     } catch {
       return null;
     }
 
-    for (const frame of iframes) {
+    for (const frame of frames) {
       try {
         const doc = frame.contentDocument || frame.contentWindow?.document;
         if (!doc) continue;
-        const found = findTriarButton(doc, depth + 1);
+        const found = findTargetElement(targetKey, doc, depth + 1);
         if (found) return found;
       } catch {
-        // cross-origin iframe — ignore
+        /* cross-origin */
       }
     }
 
     return null;
   }
 
-  function waitForButton(timeoutMs = DEFAULT_WAIT_MS) {
+  function waitForTarget(targetKey, timeoutMs = DEFAULT_WAIT_MS) {
     return new Promise((resolve) => {
-      const existing = findTriarButton();
+      const existing = findTargetElement(targetKey);
       if (existing) {
         resolve(existing);
         return;
@@ -100,18 +149,18 @@
       const started = Date.now();
       let done = false;
 
-      const finish = (btn) => {
+      const finish = (el) => {
         if (done) return;
         done = true;
         observer.disconnect();
         clearInterval(poll);
-        resolve(btn);
+        resolve(el);
       };
 
       const check = () => {
-        const btn = findTriarButton();
-        if (btn) {
-          finish(btn);
+        const el = findTargetElement(targetKey);
+        if (el) {
+          finish(el);
           return;
         }
         if (Date.now() - started >= timeoutMs) finish(null);
@@ -125,7 +174,7 @@
           attributes: true,
         });
       } catch {
-        /* observe may fail on odd documents */
+        /* ignore */
       }
 
       const poll = setInterval(check, 400);
@@ -133,15 +182,15 @@
     });
   }
 
-  function clickButton(btn) {
+  function clickElement(el) {
     try {
-      btn.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
     } catch {
       /* ignore */
     }
 
     try {
-      btn.focus({ preventScroll: true });
+      el.focus({ preventScroll: true });
     } catch {
       /* ignore */
     }
@@ -149,11 +198,11 @@
     const events = ["pointerdown", "mousedown", "pointerup", "mouseup", "click"];
     for (const type of events) {
       try {
-        btn.dispatchEvent(
+        el.dispatchEvent(
           new MouseEvent(type, {
             bubbles: true,
             cancelable: true,
-            view: btn.ownerDocument?.defaultView || window,
+            view: el.ownerDocument?.defaultView || window,
             buttons: 1,
           })
         );
@@ -162,63 +211,68 @@
       }
     }
 
-    if (typeof btn.click === "function") btn.click();
+    if (typeof el.click === "function") el.click();
   }
 
-  function flashFeedback(btn) {
+  function flashFeedback(el) {
     try {
-      const prev = btn.style.outline;
-      btn.style.outline = "3px solid #e10600";
-      btn.style.outlineOffset = "3px";
+      const prev = el.style.outline;
+      el.style.outline = "3px solid #e10600";
+      el.style.outlineOffset = "3px";
       setTimeout(() => {
-        btn.style.outline = prev;
-        btn.style.outlineOffset = "";
+        el.style.outline = prev;
+        el.style.outlineOffset = "";
       }, 900);
     } catch {
       /* ignore */
     }
   }
 
-  async function attemptClick(waitMs = DEFAULT_WAIT_MS) {
-    const btn = await waitForButton(waitMs);
-    if (!btn) {
+  async function attemptClick(targetKey = "triar", waitMs = DEFAULT_WAIT_MS) {
+    const target = getTarget(targetKey);
+    const el = await waitForTarget(targetKey, waitMs);
+    if (!el) {
       return {
         ok: false,
-        message: "Botão TRIAR PROCESSOS não encontrado (mesmo após aguardar o reload).",
+        message: `"${target.name}" não encontrado (mesmo após aguardar o reload).`,
         found: false,
+        targetKey: target.key,
       };
     }
 
-    if (btn.disabled || btn.getAttribute("aria-disabled") === "true") {
+    if (el.disabled || el.getAttribute("aria-disabled") === "true") {
       return {
         ok: false,
-        message: "Botão encontrado, mas está desabilitado.",
+        message: `"${target.name}" encontrado, mas está desabilitado.`,
         found: true,
+        targetKey: target.key,
       };
     }
 
-    clickButton(btn);
-    flashFeedback(btn);
+    clickElement(el);
+    flashFeedback(el);
 
     return {
       ok: true,
-      message: "Clique em TRIAR PROCESSOS executado. Aguardando possível reload…",
+      message: `Clique em "${target.name}" executado. Aguardando possível reload/navegação…`,
       found: true,
-      buttonId: btn.id || null,
-      label: (btn.querySelector?.(".t-Button-label")?.textContent || btn.textContent || "").trim(),
+      targetKey: target.key,
+      buttonId: el.id || null,
+      label: elementText(el),
       expectsReload: true,
     };
   }
 
-  async function probe(waitMs = 0) {
-    const btn = waitMs > 0 ? await waitForButton(waitMs) : findTriarButton();
+  async function probe(targetKey = "triar", waitMs = 0) {
+    const target = getTarget(targetKey);
+    const el = waitMs > 0 ? await waitForTarget(targetKey, waitMs) : findTargetElement(targetKey);
     return {
-      found: Boolean(btn),
-      buttonId: btn?.id || null,
-      label: btn
-        ? (btn.querySelector?.(".t-Button-label")?.textContent || btn.textContent || "").trim()
-        : null,
-      disabled: btn ? Boolean(btn.disabled || btn.getAttribute("aria-disabled") === "true") : null,
+      found: Boolean(el),
+      targetKey: target.key,
+      targetName: target.name,
+      buttonId: el?.id || null,
+      label: el ? elementText(el) : null,
+      disabled: el ? Boolean(el.disabled || el.getAttribute("aria-disabled") === "true") : null,
       url: location.href,
     };
   }
@@ -226,20 +280,32 @@
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (!message || !message.type) return;
 
+    const targetKey = message.targetKey || "triar";
+
     if (message.type === "PROBE_BUTTON") {
       const waitMs = Number(message.waitMs) || 0;
       if (waitMs > 0) {
-        probe(waitMs).then(sendResponse);
+        probe(targetKey, waitMs).then(sendResponse);
         return true;
       }
-      sendResponse(probe(0));
+      sendResponse(probe(targetKey, 0));
       return;
     }
 
-    if (message.type === "CLICK_TRIAR") {
+    if (message.type === "CLICK_TRIAR" || message.type === "CLICK_TARGET") {
       const waitMs = Number(message.waitMs) || DEFAULT_WAIT_MS;
-      attemptClick(waitMs).then(sendResponse);
+      attemptClick(targetKey, waitMs).then(sendResponse);
       return true;
+    }
+
+    if (message.type === "LIST_TARGETS") {
+      sendResponse(
+        Object.values(TARGETS).map((t) => ({
+          key: t.key,
+          name: t.name,
+        }))
+      );
+      return;
     }
 
     if (message.type === "PING") {
@@ -248,19 +314,6 @@
     }
   });
 
-  // Reanexa watcher quando o DOM APEX recria a região após partial refresh
-  const bootObserver = new MutationObserver(() => {
-    // keep alive — findTriarButton already polls on demand
-  });
-  try {
-    if (document.documentElement) {
-      bootObserver.observe(document.documentElement, { childList: true, subtree: true });
-    }
-  } catch {
-    /* ignore */
-  }
-
-  // Avisa o background que esta aba/frame está pronta (útil após reload)
   try {
     chrome.runtime.sendMessage({ type: "CONTENT_READY", href: location.href });
   } catch {
@@ -268,9 +321,10 @@
   }
 
   window.__triarAutoExtension = {
-    version: "1.1.0",
+    version: "1.2.0",
     booted: true,
-    probe: () => probe(0),
-    findTriarButton,
+    targets: TARGETS,
+    probe: (key) => probe(key || "triar", 0),
+    findTargetElement,
   };
 })();

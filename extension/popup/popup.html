@@ -18,11 +18,19 @@
       </div>
       <div class="brand-text">
         <p class="product">Triar Auto</p>
-        <h1>TRIAR PROCESSOS</h1>
+        <h1>AUTO CLICK</h1>
       </div>
     </header>
 
-    <p class="lede">Localiza o botão de triagem na página e dispara o clique no intervalo que você definir.</p>
+    <p class="lede">Escolha o alvo na página do sistema e dispare o clique no intervalo que você definir.</p>
+
+    <label class="field">
+      <span>Ação automática</span>
+      <select id="targetSelect">
+        <option value="triar">TRIAR PROCESSOS</option>
+        <option value="despacho">Criação de Despacho</option>
+      </select>
+    </label>
 
     <section class="status-panel" aria-live="polite">
       <div class="status-row">
@@ -45,7 +53,7 @@
     </section>
 
     <section class="probe" id="probeBox">
-      <span class="probe-label">Botão na aba atual</span>
+      <span class="probe-label">Alvo na aba atual</span>
       <strong id="probeResult">Verificando…</strong>
     </section>
 

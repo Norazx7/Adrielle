@@ -6,6 +6,7 @@ const els = {
   lastClick: document.getElementById("lastClick"),
   probeBox: document.getElementById("probeBox"),
   probeResult: document.getElementById("probeResult"),
+  targetSelect: document.getElementById("targetSelect"),
   intervalRange: document.getElementById("intervalRange"),
   intervalInput: document.getElementById("intervalInput"),
   toggleBtn: document.getElementById("toggleBtn"),
@@ -31,6 +32,10 @@ function clampInterval(value) {
   return Math.min(60, Math.max(1, Math.round(n)));
 }
 
+function resolveTargetKey(value) {
+  return value === "despacho" ? "despacho" : "triar";
+}
+
 function renderState(state) {
   const enabled = Boolean(state.enabled);
   els.statusDot.dataset.state =
@@ -43,6 +48,7 @@ function renderState(state) {
   const interval = clampInterval(state.intervalMinutes);
   els.intervalRange.value = String(interval);
   els.intervalInput.value = String(interval);
+  els.targetSelect.value = resolveTargetKey(state.targetKey);
 
   els.toggleBtn.textContent = enabled ? "Pausar" : "Iniciar";
   els.toggleBtn.dataset.running = enabled ? "true" : "false";
@@ -58,11 +64,12 @@ async function send(type, payload = {}) {
 async function refreshProbe() {
   els.probeResult.textContent = "Verificando…";
   els.probeBox.dataset.found = "";
+  const targetKey = resolveTargetKey(els.targetSelect.value);
   try {
-    const probe = await send("PROBE_ACTIVE_TAB");
+    const probe = await send("PROBE_ACTIVE_TAB", { targetKey });
     if (probe?.found) {
       els.probeBox.dataset.found = "true";
-      const label = probe.label || "TRIAR PROCESSOS";
+      const label = probe.label || probe.targetName || "Alvo";
       const disabled = probe.disabled ? " (desabilitado)" : "";
       els.probeResult.textContent = `Encontrado: ${label}${disabled}`;
     } else {
@@ -91,10 +98,11 @@ async function boot() {
 els.toggleBtn.addEventListener("click", async () => {
   const current = await send("GET_STATE");
   const intervalMinutes = clampInterval(els.intervalInput.value);
+  const targetKey = resolveTargetKey(els.targetSelect.value);
   if (current?.enabled) {
     renderState(await send("STOP"));
   } else {
-    renderState(await send("START", { intervalMinutes }));
+    renderState(await send("START", { intervalMinutes, targetKey }));
   }
   await refreshProbe();
 });
@@ -103,12 +111,19 @@ els.clickNowBtn.addEventListener("click", async () => {
   els.clickNowBtn.disabled = true;
   els.clickNowBtn.textContent = "Clicando…";
   try {
+    await send("SAVE_TARGET", { targetKey: resolveTargetKey(els.targetSelect.value) });
     renderState(await send("CLICK_NOW"));
     await refreshProbe();
   } finally {
     els.clickNowBtn.disabled = false;
     els.clickNowBtn.textContent = "Clicar agora";
   }
+});
+
+els.targetSelect.addEventListener("change", async () => {
+  const targetKey = resolveTargetKey(els.targetSelect.value);
+  renderState(await send("SAVE_TARGET", { targetKey }));
+  await refreshProbe();
 });
 
 function syncIntervalInputs(from) {

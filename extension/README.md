@@ -1,8 +1,11 @@
-# Triar Processos Auto
+# Triar Auto — Processos & Despacho
 
-Extensão Chrome (Manifest V3) que localiza o botão **TRIAR PROCESSOS** em páginas Oracle APEX e clica automaticamente no intervalo configurado (padrão: 5 minutos).
+Extensão Chrome (Manifest V3) que clica automaticamente, no intervalo configurado (padrão: 5 minutos), em:
 
-Depois que a triagem termina e a página recarrega, a extensão **reinjeta o script**, espera o botão voltar a aparecer (até 60s) e segue o ciclo normalmente.
+- **TRIAR PROCESSOS** (botão da tela de triagem)
+- **Criação de Despacho** (item do menu superior)
+
+Escolha o alvo no popup. Depois de reload/navegação, a extensão **reinjeta o script**, espera o alvo voltar (até 60s) e segue o ciclo.
 
 **Desenvolvido por Witório Bandeira**
 
