@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Triar Auto</title>
+  <link rel="stylesheet" href="fonts.css" />
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="shell">
+    <div class="atmosphere" aria-hidden="true"></div>
+
+    <header class="brand">
+      <div class="mark" aria-hidden="true">
+        <span class="mark-ring"></span>
+        <span class="mark-play"></span>
+      </div>
+      <div class="brand-text">
+        <p class="product">Triar Auto</p>
+        <h1>AUTO CLICK</h1>
+      </div>
+    </header>
+
+    <p class="lede">Cada aba mantém a própria ação. A automação <strong>não pausa sozinha</strong> — só para se você clicar em Pausar.</p>
+
+    <section class="probe" id="globalBox">
+      <span class="probe-label">Status global</span>
+      <strong id="globalInfo">—</strong>
+    </section>
+
+    <section class="probe" id="tabBox">
+      <span class="probe-label">Aba atual</span>
+      <strong id="tabInfo">—</strong>
+    </section>
+
+    <label class="field">
+      <span>Ação desta aba</span>
+      <select id="targetSelect">
+        <option value="triar">TRIAR PROCESSOS</option>
+        <option value="despacho">Criar Despacho</option>
+      </select>
+    </label>
+
+    <section class="status-panel" aria-live="polite">
+      <div class="status-row">
+        <span class="dot" id="statusDot" data-state="idle"></span>
+        <div>
+          <p class="status-label" id="statusLabel">—</p>
+          <p class="status-detail" id="statusDetail">—</p>
+        </div>
+      </div>
+      <div class="meta">
+        <div>
+          <span class="meta-key">Cliques</span>
+          <strong id="clickCount">0</strong>
+        </div>
+        <div>
+          <span class="meta-key">Último</span>
+          <strong id="lastClick">—</strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="probe" id="probeBox">
+      <span class="probe-label">Detecção nesta aba</span>
+      <strong id="probeResult">Verificando…</strong>
+    </section>
+
+    <section class="probe" id="jobsBox">
+      <span class="probe-label">Abas ativas</span>
+      <strong id="jobsResult">Nenhuma</strong>
+    </section>
+
+    <label class="field">
+      <span>Intervalo (minutos) — global</span>
+      <div class="interval-row">
+        <input type="range" id="intervalRange" min="1" max="60" value="5" />
+        <input type="number" id="intervalInput" min="1" max="60" value="5" />
+      </div>
+    </label>
+
+    <div class="actions">
+      <button type="button" class="btn primary" id="toggleBtn">Iniciar nesta aba</button>
+      <button type="button" class="btn ghost" id="clickNowBtn">Clicar agora</button>
+    </div>
+
+    <button type="button" class="btn ghost full" id="stopAllBtn">Pausar todas as abas</button>
+
+    <section class="probe log-box" id="logBox">
+      <span class="probe-label">Últimos eventos</span>
+      <pre id="eventLog">—</pre>
+    </section>
+
+    <footer class="credit">
+      <span>Desenvolvido por</span>
+      <strong>Witório Bandeira</strong>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
