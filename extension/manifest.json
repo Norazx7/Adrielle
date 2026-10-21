@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Triar Auto — Processos & Despacho",
-  "version": "1.3.0",
-  "description": "Automação multi-aba: TRIAR PROCESSOS e Criar Despacho, com detecção robusta em todos os frames.",
+  "version": "1.4.0",
+  "description": "Automação multi-aba anti-pausa: watchdog, reattach e cliques em TRIAR PROCESSOS / Criar Despacho.",
   "author": "Witório Bandeira",
   "icons": {
     "16": "icons/icon16.png",

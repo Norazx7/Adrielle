@@ -22,7 +22,12 @@
       </div>
     </header>
 
-    <p class="lede">Cada aba guarda a própria ação. Abra a aba do sistema, escolha o alvo e inicie.</p>
+    <p class="lede">Cada aba mantém a própria ação. A automação <strong>não pausa sozinha</strong> — só para se você clicar em Pausar.</p>
+
+    <section class="probe" id="globalBox">
+      <span class="probe-label">Status global</span>
+      <strong id="globalInfo">—</strong>
+    </section>
 
     <section class="probe" id="tabBox">
       <span class="probe-label">Aba atual</span>
@@ -41,8 +46,8 @@
       <div class="status-row">
         <span class="dot" id="statusDot" data-state="idle"></span>
         <div>
-          <p class="status-label" id="statusLabel">Pausado</p>
-          <p class="status-detail" id="statusDetail">Pronto para iniciar nesta aba</p>
+          <p class="status-label" id="statusLabel">—</p>
+          <p class="status-detail" id="statusDetail">—</p>
         </div>
       </div>
       <div class="meta">
@@ -81,6 +86,11 @@
     </div>
 
     <button type="button" class="btn ghost full" id="stopAllBtn">Pausar todas as abas</button>
+
+    <section class="probe log-box" id="logBox">
+      <span class="probe-label">Últimos eventos</span>
+      <pre id="eventLog">—</pre>
+    </section>
 
     <footer class="credit">
       <span>Desenvolvido por</span>

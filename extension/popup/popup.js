@@ -6,8 +6,10 @@ const els = {
   lastClick: document.getElementById("lastClick"),
   probeBox: document.getElementById("probeBox"),
   probeResult: document.getElementById("probeResult"),
+  globalInfo: document.getElementById("globalInfo"),
   tabInfo: document.getElementById("tabInfo"),
   jobsResult: document.getElementById("jobsResult"),
+  eventLog: document.getElementById("eventLog"),
   targetSelect: document.getElementById("targetSelect"),
   intervalRange: document.getElementById("intervalRange"),
   intervalInput: document.getElementById("intervalInput"),
@@ -58,11 +60,27 @@ function shortTitle(title, url) {
 
 function renderState(view) {
   const job = view.activeJob;
-  const enabled = Boolean(job?.enabled);
+  const enabledHere = Boolean(job?.enabled);
+  const globalActive = Boolean(view.globalActive || view.enabledCount > 0);
 
-  els.statusDot.dataset.state = enabled ? (job?.lastOk === false ? "error" : "on") : "idle";
-  els.statusLabel.textContent = enabled ? "Ativo nesta aba" : "Pausado nesta aba";
-  els.statusDetail.textContent = job?.lastStatus || view.error || "Escolha a ação e inicie nesta aba.";
+  if (enabledHere) {
+    els.statusDot.dataset.state = job?.lastOk === false ? "error" : "on";
+    els.statusLabel.textContent = "ATIVA nesta aba";
+  } else if (globalActive) {
+    els.statusDot.dataset.state = "on";
+    els.statusLabel.textContent = "Outras abas ativas";
+  } else {
+    els.statusDot.dataset.state = "idle";
+    els.statusLabel.textContent = "Parada nesta aba";
+  }
+
+  els.statusDetail.textContent =
+    job?.lastStatus ||
+    view.error ||
+    (globalActive
+      ? "Esta aba não tem automação; outras seguem rodando."
+      : "Escolha a ação e inicie nesta aba.");
+
   els.clickCount.textContent = String(job?.clickCount || 0);
   els.lastClick.textContent = formatTime(job?.lastClickAt);
 
@@ -77,18 +95,46 @@ function renderState(view) {
     ? `#${view.activeTabId} · ${shortTitle(view.activeTabTitle, view.activeTabUrl)}`
     : "Nenhuma aba ativa";
 
+  const enabledCount = view.enabledCount || 0;
+  const orphanCount = view.orphanCount || 0;
+  if (enabledCount > 0) {
+    els.globalInfo.textContent = `${enabledCount} aba(s) rodando · watchdog ativo`;
+    els.globalBox?.setAttribute("data-found", "true");
+  } else if (orphanCount > 0) {
+    els.globalInfo.textContent = `0 ativas · ${orphanCount} intenção(ões) aguardando reconectar`;
+    els.globalBox?.setAttribute("data-found", "false");
+  } else {
+    els.globalInfo.textContent = "Nenhuma automação ativa";
+    els.globalBox?.setAttribute("data-found", "false");
+  }
+
   const enabledJobs = (view.jobs || []).filter((j) => j.enabled);
   if (!enabledJobs.length) {
-    els.jobsResult.textContent = "Nenhuma";
+    els.jobsResult.textContent = orphanCount
+      ? `Nenhuma aberta · ${orphanCount} para reconectar`
+      : "Nenhuma";
   } else {
     els.jobsResult.textContent = enabledJobs
       .map((j) => `#${j.tabId} ${targetName(j.targetKey)}`)
       .join(" · ");
   }
 
-  els.toggleBtn.textContent = enabled ? "Pausar esta aba" : "Iniciar nesta aba";
-  els.toggleBtn.dataset.running = enabled ? "true" : "false";
+  if (Array.isArray(view.eventLog) && view.eventLog.length) {
+    els.eventLog.textContent = view.eventLog
+      .slice(0, 8)
+      .map((e) => `${formatTime(e.at)} · ${e.message}`)
+      .join("\n");
+  } else {
+    els.eventLog.textContent = "Sem eventos ainda";
+  }
+
+  els.toggleBtn.textContent = enabledHere ? "Pausar esta aba" : "Iniciar nesta aba";
+  els.toggleBtn.dataset.running = enabledHere ? "true" : "false";
 }
+
+// globalBox may be used before optional chaining assign - get element
+const globalBox = document.getElementById("globalBox");
+els.globalBox = globalBox;
 
 async function send(type, payload = {}) {
   if (!globalThis.chrome?.runtime?.sendMessage) {
@@ -111,7 +157,7 @@ async function refreshProbe() {
     } else {
       els.probeBox.dataset.found = "false";
       els.probeResult.textContent =
-        probe?.message || "Não encontrado. Confirme que o botão está visível nesta aba.";
+        probe?.message || "Não encontrado. Confirme que o botão está nesta aba.";
     }
   } catch (err) {
     els.probeBox.dataset.found = "false";

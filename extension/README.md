@@ -1,30 +1,30 @@
-# Triar Auto — Processos & Despacho
+# Triar Auto — Processos & Despacho (v1.4.0)
 
-Extensão Chrome (Manifest V3) multi-aba para automatizar cliques em:
+Extensão Chrome multi-aba para clicar automaticamente em:
 
 - **TRIAR PROCESSOS**
-- **Criar Despacho** (`span.t-Button-label`)
+- **Criar Despacho**
 
 **Desenvolvido por Witório Bandeira**
 
-## Como usar com 2 abas
+## Anti-pausa (v1.4)
 
-1. Aba 1 (triagem): escolha **TRIAR PROCESSOS** → **Iniciar nesta aba**
-2. Aba 2 (despacho): escolha **Criar Despacho** → **Iniciar nesta aba**
-3. As duas ficam ativas ao mesmo tempo (veja “Abas ativas” no popup)
+- A automação **só para** se você clicar em Pausar / Pausar todas
+- Falha de clique **não** desliga o job
+- Watchdog a cada 1 min recria o alarme se o Chrome dropar
+- Se a aba fechar/recarregar pesado, a intenção fica salva e **reconecta** sozinha
+- Storage com fila (sem race apagando `enabled`)
+- Clique rápido nos frames (não trava 90s × N frames)
 
-Cada aba guarda a própria ação. O intervalo é global.
+## Uso com 2 abas
 
-## Detecção
+1. Aba triagem → TRIAR PROCESSOS → **Iniciar nesta aba**
+2. Aba despacho → Criar Despacho → **Iniciar nesta aba**
 
-- Varre **todos os frames** da aba
-- Procura por `data-otel-label`, id, `.t-Button-label` e texto normalizado
-- Espera até 90s após reload da página
-- Reinjeta o script automaticamente
+No popup, veja **Status global** e **Últimos eventos**.
 
 ## Instalar
 
-1. Extraia o zip
-2. `chrome://extensions` → Modo do desenvolvedor
-3. Remova a versão antiga
-4. **Carregar sem compactação** → pasta extraída
+1. Extraia o zip  
+2. `chrome://extensions` → remova a versão antiga  
+3. **Carregar sem compactação**

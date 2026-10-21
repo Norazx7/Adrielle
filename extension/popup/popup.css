@@ -39,8 +39,24 @@ body {
   padding: 22px 20px 16px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  min-height: 560px;
+  gap: 10px;
+  min-height: 620px;
+}
+
+.log-box pre {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 11px;
+  line-height: 1.35;
+  color: rgba(245, 245, 245, 0.72);
+  white-space: pre-wrap;
+  max-height: 88px;
+  overflow: auto;
+}
+
+.lede strong {
+  color: #ff6b63;
+  font-weight: 700;
 }
 
 .atmosphere {

@@ -398,7 +398,7 @@
         ok: true,
         href: location.href,
         isTop: window.top === window,
-        version: "1.3.0",
+        version: "1.4.0",
       });
       return;
     }
@@ -415,7 +415,7 @@
   }
 
   window.__triarAutoExtension = {
-    version: "1.3.0",
+    version: "1.4.0",
     booted: true,
     targets: TARGETS,
     findTargetElement,
