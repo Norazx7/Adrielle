@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "GLPI Triagem Auto",
-  "version": "1.0.0",
-  "description": "Preenche e adiciona a tarefa de triagem no GLPI (Feito + witorio.couto + grupo TRIAGEM).",
+  "version": "1.1.0",
+  "description": "Preenche a tarefa GLPI via modelo 15 (Realizar triagem) + Feito/1077/grupo 11 e Adicionar.",
   "author": "Witório Bandeira",
   "icons": {
     "16": "icons/icon16.png",

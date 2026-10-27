@@ -1,333 +1,274 @@
 (() => {
   if (window.__glpiTriagemAuto?.booted) return;
 
-  const DEFAULTS = {
+  // Calibrado no helpdesk.detran.go.gov.br (ticket.form.php)
+  const CFG = {
+    templateId: "15",
+    templateText: "Realizar triagem",
+    stateId: "2",
+    stateText: "Feito",
+    userId: "1077",
+    userText: "witorio.couto",
+    groupId: "11",
+    groupText: "DTI - CENTRAL TI - TRIAGEM",
     contentHtml: `<p>Executar a triagem do chamado. <strong>Lembre-se:</strong></p>
 <ul>
 <li>Atribuir a TAREFA para si (técnico encarregado do atendimento);</li>
 <li>Alterar a data da TAREFA para o dia do atendimento caso necessário;</li>
 </ul>
 <p>Ao final da triagem do chamado, marcar como FEITO.</p>`,
-    templateText: "Realizar triagem",
-    statusText: "Feito",
-    statusValue: "2",
-    userText: "witorio.couto",
-    groupText: "DTI - CENTRAL TI - TRIAGEM",
-    isPrivate: false,
     autoSubmit: true,
   };
 
-  function sleep(ms) {
-    return new Promise((r) => setTimeout(r, ms));
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  function $(sel, root = document) {
+    return root.querySelector(sel);
   }
 
-  function isGlpiTicketPage() {
-    const href = location.href.toLowerCase();
-    const path = location.pathname.toLowerCase();
-    if (/ticket\.form\.php|ticket\.tabs|\/front\/ticket|\/ticket\//i.test(href + path)) return true;
-    if (document.querySelector(".itil-timeline, #itil-data, form[name='form_ticket'], .timeline-item")) return true;
-    if (document.body?.innerText?.includes("Adicionar uma nova tarefa")) return true;
-    return false;
+  function $all(sel, root = document) {
+    return Array.from(root.querySelectorAll(sel));
   }
 
-  function normalize(s) {
-    return String(s || "")
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/\s+/g, " ")
-      .trim()
-      .toLowerCase();
+  function isTicketPage() {
+    return /ticket\.form\.php/i.test(location.href) || Boolean($(".itil-timeline, .timeline-item, .action-task"));
   }
 
-  function textMatches(hay, needle) {
-    const h = normalize(hay);
-    const n = normalize(needle);
-    return h === n || h.includes(n) || n.includes(h);
-  }
-
-  function setNativeValue(el, value) {
-    const proto = el.tagName === "SELECT" ? HTMLSelectElement.prototype : HTMLInputElement.prototype;
-    const desc = Object.getOwnPropertyDescriptor(proto, "value");
-    if (desc?.set) desc.set.call(el, value);
-    else el.value = value;
-    el.dispatchEvent(new Event("input", { bubbles: true }));
-    el.dispatchEvent(new Event("change", { bubbles: true }));
-  }
-
-  function findSelectByNames(names) {
-    for (const name of names) {
-      const el = document.querySelector(`select[name="${name}"], select[name^="${name}"], select[id*="${name}"]`);
-      if (el) return el;
-    }
-    return null;
-  }
-
-  function findSelectNearLabel(labelHints) {
-    const hints = labelHints.map(normalize);
-    const labels = Array.from(document.querySelectorAll("label, .form-label, .col-form-label, span, div"));
-    for (const lab of labels) {
-      const t = normalize(lab.textContent || "");
-      if (!hints.some((h) => t.includes(h))) continue;
-      const forId = lab.getAttribute("for");
-      if (forId) {
-        const byFor = document.getElementById(forId);
-        if (byFor?.tagName === "SELECT") return byFor;
-      }
-      const wrap = lab.closest(".form-field, .form-group, .field-container, .row, .mb-2, .mb-3") || lab.parentElement;
-      const sel = wrap?.querySelector?.("select");
-      if (sel) return sel;
-    }
-    return null;
-  }
-
-  function optionByText(select, wanted) {
-    if (!select) return null;
-    const opts = Array.from(select.options || []);
+  function getTaskFormRoot() {
+    const tech = $('select[name="users_id_tech"]');
+    if (!tech) return null;
     return (
-      opts.find((o) => textMatches(o.textContent, wanted)) ||
-      opts.find((o) => textMatches(o.value, wanted)) ||
-      null
+      tech.closest("form") ||
+      tech.closest(".itil-timeline-item, .timeline-item, .card, .tab-pane, .row") ||
+      tech.parentElement?.parentElement ||
+      document
     );
   }
 
-  async function setSelectByText(select, wanted, preferredValue) {
+  function glpiSetValue(select, value) {
     if (!select) return false;
+    const str = String(value);
+    const $jq = window.jQuery;
 
-    if (preferredValue != null) {
-      const byVal = Array.from(select.options || []).find((o) => String(o.value) === String(preferredValue));
-      if (byVal) {
-        setNativeValue(select, byVal.value);
-        if (window.jQuery) {
-          try {
-            window.jQuery(select).val(byVal.value).trigger("change");
-          } catch {
-            /* ignore */
-          }
-        }
-        return true;
-      }
+    // Garante option existente (Select2 AJAX às vezes não tem)
+    if (![...select.options].some((o) => String(o.value) === str)) {
+      const opt = document.createElement("option");
+      opt.value = str;
+      opt.textContent = str;
+      select.appendChild(opt);
     }
 
-    const opt = optionByText(select, wanted);
-    if (!opt) return false;
+    select.value = str;
+    select.dispatchEvent(new Event("input", { bubbles: true }));
+    select.dispatchEvent(new Event("change", { bubbles: true }));
 
-    setNativeValue(select, opt.value);
-    if (window.jQuery) {
+    if ($jq) {
       try {
-        window.jQuery(select).val(opt.value).trigger("change");
-        // Select2 / GLPI setValue
-        const id = select.id;
-        if (id) window.jQuery(`#${CSS.escape(id)}`).trigger("setValue", opt.value);
+        const $el = $jq(select);
+        $el.val(str).trigger("change");
+        // API nativa GLPI
+        $el.trigger("setValue", str);
+        if (select.id) $jq(`#${CSS.escape(select.id)}`).trigger("setValue", str);
       } catch {
         /* ignore */
       }
     }
-    return true;
+    return String(select.value) === str;
   }
 
-  async function setSelect2BySearch(select, wanted) {
-    if (!select) return false;
-    const $ = window.jQuery;
-    if (!$ || !$.fn?.select2) {
-      return setSelectByText(select, wanted);
-    }
+  function setTinyByIdOrTask(html) {
+    const root = getTaskFormRoot();
+    const ta =
+      (root && root.querySelector?.('textarea[name="content"]')) ||
+      $('textarea[id^="content_"][name="content"]') ||
+      $all('textarea[name="content"]').find((t) => {
+        const id = t.id || "";
+        // o form de tarefa costuma compartilhar o mesmo rand do select users_id_tech
+        const tech = $('select[name="users_id_tech"]');
+        return tech?.id && id.includes(String(tech.id).replace(/\D/g, "").slice(-6));
+      }) ||
+      $all('textarea[name="content"]').find((t) => /content_\d+/.test(t.id || ""));
 
+    const targetId = ta?.id;
     try {
-      const $el = $(select);
-      // tenta abrir e filtrar
-      $el.select2("open");
-      await sleep(150);
-      const search = document.querySelector(".select2-container--open .select2-search__field");
-      if (search) {
-        search.focus();
-        search.value = wanted;
-        search.dispatchEvent(new Event("input", { bubbles: true }));
-        await sleep(350);
-        const opt = document.querySelector(".select2-results__option--highlighted, .select2-results__option[aria-selected='true'], .select2-results__option");
-        if (opt) {
-          opt.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
-          await sleep(100);
+      if (window.tinymce?.get && targetId) {
+        const ed = window.tinymce.get(targetId);
+        if (ed) {
+          ed.setContent(html);
+          ed.fire("change");
           return true;
         }
       }
-      $el.select2("close");
-    } catch {
-      /* fallback */
-    }
-    return setSelectByText(select, wanted);
-  }
-
-  function setTinyOrTextarea(html) {
-    const plain = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-
-    // TinyMCE
-    try {
-      if (window.tinymce) {
-        const editors = window.tinymce.get() || [];
-        for (const ed of editors) {
-          const id = ed.id || "";
-          if (/content|task/i.test(id) || editors.length === 1) {
-            ed.setContent(html);
-            ed.fire("change");
-            return true;
-          }
+      // fallback: editor ligado ao select de tarefa
+      if (window.tinymce?.get) {
+        const tech = $('select[name="users_id_tech"]');
+        const rand = (tech?.id || "").replace(/\D/g, "");
+        const ed = rand ? window.tinymce.get(`content_${rand}`) : null;
+        if (ed) {
+          ed.setContent(html);
+          ed.fire("change");
+          return true;
         }
       }
     } catch {
       /* ignore */
     }
 
-    const area =
-      document.querySelector("textarea[name='content']") ||
-      document.querySelector("textarea[name*='content']") ||
-      document.querySelector(".tox-edit-area textarea") ||
-      document.querySelector("textarea");
-
-    if (area) {
-      setNativeValue(area, html);
-      // se for tinymce hidden, também tenta plain
-      if (!area.value.includes("<")) setNativeValue(area, plain);
+    if (ta) {
+      ta.value = html;
+      ta.dispatchEvent(new Event("input", { bubbles: true }));
+      ta.dispatchEvent(new Event("change", { bubbles: true }));
       return true;
     }
     return false;
   }
 
-  function setPrivate(wantedPrivate) {
-    const input =
-      document.querySelector("input[name='is_private']") ||
-      document.querySelector("input[data-testid='private-switch']") ||
-      document.querySelector("input[type='checkbox'][name*='private']");
-    if (!input) return false;
-    const should = Boolean(wantedPrivate);
-    if (input.type === "checkbox") {
-      if (input.checked !== should) input.click();
+  async function openTaskPanel() {
+    if ($('select[name="tasktemplates_id"]') && $('select[name="users_id_tech"]')) {
       return true;
     }
-    setNativeValue(input, should ? "1" : "0");
+
+    const btn =
+      $("button.answer-action.action-task") ||
+      $all("button, a").find((el) => {
+        const t = (el.textContent || "").replace(/\s+/g, " ").trim();
+        return t === "Tarefa" || /^tarefa$/i.test(t);
+      });
+
+    if (!btn) return false;
+    btn.click();
+
+    for (let i = 0; i < 40; i += 1) {
+      await sleep(150);
+      if ($('select[name="tasktemplates_id"]') && $('select[name="users_id_tech"]')) return true;
+    }
+    return false;
+  }
+
+  async function waitForTemplateApply() {
+    for (let i = 0; i < 30; i += 1) {
+      const state = $('select[name="state"]')?.value;
+      const user = $('select[name="users_id_tech"]')?.value;
+      const group = $('select[name="groups_id_tech"]')?.value;
+      let content = "";
+      try {
+        const tech = $('select[name="users_id_tech"]');
+        const rand = (tech?.id || "").replace(/\D/g, "");
+        const ed = rand && window.tinymce?.get ? window.tinymce.get(`content_${rand}`) : null;
+        content = ed?.getContent?.() || "";
+      } catch {
+        /* ignore */
+      }
+      if (state === CFG.stateId || user === CFG.userId || /triagem/i.test(content)) {
+        return true;
+      }
+      await sleep(150);
+    }
+    return false;
+  }
+
+  function clickTaskAdd() {
+    const plan = $all("button").find((b) => /planejar esta tarefa/i.test(b.textContent || ""));
+    const scope =
+      plan?.closest("form, .card, .itil-timeline-item, .timeline-item, .tab-content, .row") ||
+      getTaskFormRoot() ||
+      document;
+
+    const buttons = $all("button.btn-primary, button.btn.btn-primary", scope);
+    let add =
+      buttons.find((b) => /^\s*adicionar\s*$/i.test((b.textContent || "").trim())) ||
+      $all("button.btn-primary").find((b) => /^\s*adicionar\s*$/i.test((b.textContent || "").trim()));
+
+    // evita botões de outros painéis
+    if (add && /arquivo|ator|documento/i.test(add.textContent || "")) add = null;
+
+    if (!add && plan) {
+      // irmão próximo do plano
+      const parent = plan.parentElement;
+      add = $all("button", parent?.parentElement || document).find((b) =>
+        /^\s*adicionar\s*$/i.test((b.textContent || "").trim())
+      );
+    }
+
+    if (!add) return false;
+    add.click();
     return true;
   }
 
-  async function openTaskForm() {
-    // já aberto?
-    if (
-      document.querySelector("select[name='state'], select[name='users_id_tech'], textarea[name='content']") ||
-      document.body.innerText.includes("Adicionar uma nova tarefa")
-    ) {
-      return true;
-    }
-
-    const candidates = Array.from(
-      document.querySelectorAll("a, button, .btn, [role='button'], .itil-timeline button, .timeline-buttons a")
-    );
-    const btn = candidates.find((el) => {
-      const t = normalize(el.textContent || el.getAttribute("title") || "");
-      return (
-        t.includes("adicionar uma nova tarefa") ||
-        t.includes("nova tarefa") ||
-        (t.includes("tarefa") && t.includes("adicionar")) ||
-        t === "tarefa"
-      );
-    });
-
-    if (btn) {
-      btn.click();
-      for (let i = 0; i < 25; i += 1) {
-        await sleep(200);
-        if (document.querySelector("select[name='users_id_tech'], select[name='state'], textarea[name='content']")) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
-
-  async function fillTask(cfg) {
-    const config = { ...DEFAULTS, ...cfg };
-    const opened = await openTaskForm();
-    if (!opened && !document.querySelector("select[name='users_id_tech'], select[name='state']")) {
+  async function fillTask(overrides = {}) {
+    const cfg = { ...CFG, ...overrides };
+    const opened = await openTaskPanel();
+    if (!opened) {
       return {
         ok: false,
-        message: "Abra o chamado e a tela de Adicionar tarefa, depois clique de novo.",
+        message: 'Clique em "Tarefa" no chamado e rode de novo.',
       };
     }
 
-    await sleep(250);
-
-    // Template (se existir na lista)
-    const templateSelect =
-      findSelectByNames(["tasktemplates_id", "_tasktemplates_id"]) ||
-      findSelectNearLabel(["modelo", "template", "realizar triagem"]);
-    if (templateSelect) {
-      await setSelect2BySearch(templateSelect, config.templateText);
-      await sleep(400); // GLPI pode auto-preencher pelo template
-    }
-
-    // Conteúdo (garante o texto mesmo se template não existir)
-    setTinyOrTextarea(config.contentHtml);
-
-    // Status Feito
-    const stateSelect = findSelectByNames(["state"]) || findSelectNearLabel(["status", "estado"]);
-    await setSelectByText(stateSelect, config.statusText, config.statusValue);
-
-    // Técnico
-    const userSelect =
-      findSelectByNames(["users_id_tech"]) || findSelectNearLabel(["tecnico", "por", "usuario", "user"]);
-    const userOk = await setSelect2BySearch(userSelect, config.userText);
-
-    // Grupo
-    const groupSelect =
-      findSelectByNames(["groups_id_tech"]) || findSelectNearLabel(["grupo", "group"]);
-    const groupOk = await setSelect2BySearch(groupSelect, config.groupText);
-
-    setPrivate(config.isPrivate);
-
-    // Reaplica conteúdo/status depois do template (template pode sobrescrever)
     await sleep(200);
-    setTinyOrTextarea(config.contentHtml);
-    await setSelectByText(stateSelect, config.statusText, config.statusValue);
-    if (!userOk) await setSelect2BySearch(userSelect, config.userText);
-    if (!groupOk) await setSelect2BySearch(groupSelect, config.groupText);
+
+    const template = $('select[name="tasktemplates_id"]');
+    const state = $('select[name="state"]');
+    const user = $('select[name="users_id_tech"]');
+    const group = $('select[name="groups_id_tech"]');
+
+    // 1) Modelo "Realizar triagem" (id 15) — no teu GLPI isso já preenche quase tudo
+    const templateOk = glpiSetValue(template, cfg.templateId);
+    await waitForTemplateApply();
+
+    // 2) Força os campos (caso o AJAX do template falhe/atraso)
+    const stateOk = glpiSetValue(state, cfg.stateId);
+    const userOk = glpiSetValue(user, cfg.userId);
+    const groupOk = glpiSetValue(group, cfg.groupId);
+    const contentOk = setTinyByIdOrTask(cfg.contentHtml);
+
+    // privada off
+    const priv = $('input[type="checkbox"][name="is_private"]');
+    if (priv?.checked) priv.click();
+
+    await sleep(150);
 
     let submitted = false;
-    if (config.autoSubmit) {
-      const addBtn = Array.from(document.querySelectorAll("button, input[type='submit'], a.btn")).find((el) => {
-        const t = normalize(el.textContent || el.value || "");
-        return t.includes("adicionar") && !t.includes("arquivo");
-      });
-      if (addBtn) {
-        addBtn.click();
-        submitted = true;
-      }
+    if (cfg.autoSubmit !== false) {
+      submitted = clickTaskAdd();
     }
 
+    const ok = templateOk || (stateOk && userOk && groupOk);
     return {
-      ok: true,
+      ok,
       submitted,
-      userOk,
-      groupOk,
-      message: submitted
-        ? "Tarefa preenchida e enviada (Adicionar)."
-        : "Tarefa preenchida. Confira e clique em Adicionar se precisar.",
+      details: { templateOk, stateOk, userOk, groupOk, contentOk },
+      values: {
+        tasktemplates_id: template?.value || null,
+        state: state?.value || null,
+        users_id_tech: user?.value || null,
+        groups_id_tech: group?.value || null,
+      },
+      message: !ok
+        ? "Não consegui setar os campos Select2 do GLPI."
+        : submitted
+          ? "Triagem preenchida e Adicionar clicado."
+          : "Triagem preenchida. Clique em Adicionar se precisar.",
     };
   }
 
   function ensureFab() {
-    if (!isGlpiTicketPage()) return;
-    if (document.getElementById("glpi-triagem-fab")) return;
-
+    if (!isTicketPage()) return;
+    if ($("#glpi-triagem-fab")) return;
     const fab = document.createElement("button");
     fab.id = "glpi-triagem-fab";
     fab.type = "button";
-    fab.title = "Preencher tarefa de triagem";
     fab.textContent = "TRIAGEM";
+    fab.title = "Preencher tarefa Realizar triagem";
     fab.addEventListener("click", async () => {
       fab.disabled = true;
       fab.textContent = "...";
       try {
-        const stored = await chrome.storage.local.get(DEFAULTS);
-        const result = await fillTask(stored);
+        const stored = await chrome.storage.local.get({ autoSubmit: true });
+        const result = await fillTask({ autoSubmit: stored.autoSubmit !== false });
         fab.textContent = result.ok ? "OK" : "ERRO";
         fab.title = result.message;
+        console.log("[GLPI Triagem Auto]", result);
       } catch (err) {
         fab.textContent = "ERRO";
         fab.title = String(err?.message || err);
@@ -335,30 +276,27 @@
       setTimeout(() => {
         fab.disabled = false;
         fab.textContent = "TRIAGEM";
-      }, 1600);
+      }, 1800);
     });
     document.documentElement.appendChild(fab);
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (!message?.type) return;
-    if (message.type === "PING") {
-      sendResponse({ ok: true, glpi: isGlpiTicketPage(), href: location.href });
+    if (message?.type === "PING") {
+      sendResponse({ ok: true, ticket: isTicketPage(), href: location.href });
       return;
     }
-    if (message.type === "FILL_TRIAGEM") {
+    if (message?.type === "FILL_TRIAGEM") {
       fillTask(message.config || {}).then(sendResponse);
       return true;
     }
   });
 
   ensureFab();
-  const mo = new MutationObserver(() => ensureFab());
-  mo.observe(document.documentElement, { childList: true, subtree: true });
+  new MutationObserver(() => ensureFab()).observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+  });
 
-  window.__glpiTriagemAuto = {
-    booted: true,
-    version: "1.0.0",
-    fillTask,
-  };
+  window.__glpiTriagemAuto = { booted: true, version: "1.1.0", fillTask, CFG };
 })();
