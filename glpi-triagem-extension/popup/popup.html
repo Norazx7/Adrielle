@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GLPI Triagem Auto</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <p class="eyebrow">GLPI · por fora</p>
+      <h1>Triagem Auto</h1>
+    </header>
+    <p class="lede">
+      Preenche a tarefa no chamado: texto padrão, status <strong>Feito</strong>,
+      técnico <strong>witorio.couto</strong> e grupo <strong>DTI - CENTRAL TI - TRIAGEM</strong>.
+    </p>
+
+    <label class="row">
+      <input type="checkbox" id="autoSubmit" checked />
+      <span>Clicar em “+ Adicionar” automaticamente</span>
+    </label>
+
+    <button type="button" class="btn" id="runBtn">Preencher nesta aba</button>
+    <p class="hint" id="status">Abra o chamado no GLPI e clique aqui (ou no botão vermelho TRIAGEM).</p>
+
+    <footer>Desenvolvido por <strong>Witório Bandeira</strong></footer>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
