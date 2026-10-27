@@ -3,40 +3,40 @@ async function getActiveTab() {
   return tabs[0] || null;
 }
 
-async function ensureScript(tabId) {
-  try {
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      files: ["content/content.js"],
-    });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   (async () => {
-    if (message.type === "RUN_ON_ACTIVE_TAB") {
+    if (message.type === "INJECT_MAIN_FILL" || message.type === "RUN_ON_ACTIVE_TAB") {
       const tab = await getActiveTab();
       if (!tab?.id) {
         sendResponse({ ok: false, message: "Nenhuma aba ativa." });
         return;
       }
-      await ensureScript(tab.id);
+
       try {
-        const result = await chrome.tabs.sendMessage(tab.id, {
-          type: "FILL_TRIAGEM",
-          config: message.config || {},
+        // Isolado: bridge + CSS
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          files: ["content/content.js"],
         });
-        sendResponse(result);
+
+        // MAIN world: jQuery/Select2/TinyMCE da página
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          files: ["content/page-fill.js"],
+          world: "MAIN",
+        });
+
+        // Lê resultado se a página expôs
+        const [{ result }] = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          world: "MAIN",
+          func: () => window.__glpiTriagemLastResult || { ok: true, message: "Script MAIN injetado." },
+        });
+
+        sendResponse(result || { ok: true, message: "Injetado no MAIN world." });
       } catch (err) {
-        sendResponse({
-          ok: false,
-          message: `Abra um chamado do GLPI nesta aba. (${err.message || err})`,
-        });
+        sendResponse({ ok: false, message: String(err?.message || err) });
       }
-      return;
     }
   })();
   return true;
