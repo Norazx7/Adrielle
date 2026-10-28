@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Mock APEX — TRIAR PROCESSOS</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      background: #f0f2f5;
+      padding: 40px;
+    }
+    .t-Button {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 18px;
+      border: none;
+      border-radius: 4px;
+      background: #c74601;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    #log {
+      margin-top: 24px;
+      padding: 16px;
+      background: #fff;
+      border-radius: 8px;
+      min-height: 80px;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <nav style="display:flex;gap:16px;margin-bottom:24px;padding:12px;background:#0f3d42;color:#fff;border-radius:8px;">
+    <a href="#home" style="color:#fff;text-decoration:none;">Home</a>
+    <a href="#despacho" style="color:#fff;text-decoration:none;">Criação de Despacho</a>
+    <a href="#triagem" style="color:#ffd700;text-decoration:none;">Triagem Nível 1 e Nível 2</a>
+  </nav>
+
+  <h1>Simulação Oracle APEX</h1>
+  <p>Use esta página para testar a extensão localmente.</p>
+
+  <button
+    class="t-Button t-Button--icon t-Button--large t-Button--simple t-Button--iconLeft t-Button--hot"
+    type="button"
+    id="B68314861501381838"
+    data-otel-label="TRIAR_NIVEL_12"
+  >
+    <span class="t-Icon t-Icon--left fa fa-database-play fa-lg" aria-hidden="true"></span>
+    <span class="t-Button-label">TRIAR PROCESSOS</span>
+    <span class="t-Icon t-Icon--right fa fa-database-play fa-lg" aria-hidden="true"></span>
+  </button>
+
+  <button class="t-Button t-Button--hot" type="button" id="btn-criar-despacho" style="margin-left:12px;background:#0f3d42;">
+    <span class="t-Button-label"> Criar Despacho</span>
+  </button>
+
+  <div id="log">Aguardando cliques…</div>
+
+  <script>
+    const log = document.getElementById("log");
+    const btn = document.getElementById("B68314861501381838");
+    const despacho = document.getElementById("btn-criar-despacho");
+    let count = 0;
+    function addLog(msg) {
+      count += 1;
+      const line = `[${new Date().toLocaleTimeString("pt-BR")}] #${count} ${msg}`;
+      log.textContent = line + "\n" + log.textContent;
+      console.log(line);
+    }
+    btn.addEventListener("click", () => addLog("Clique em TRIAR PROCESSOS"));
+    despacho.addEventListener("click", () => addLog("Clique em Criar Despacho"));
+  </script>
+</body>
+</html>

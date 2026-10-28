@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "GLPI Triagem Auto",
+  "version": "1.2.0",
+  "description": "Preenche tarefa GLPI no MAIN world (Select2/jQuery real): modelo 15, Feito, user 1077, grupo 11.",
+  "author": "Witório Bandeira",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "GLPI Triagem Auto",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png"
+    }
+  },
+  "background": {
+    "service_worker": "background/service-worker.js"
+  },
+  "permissions": ["storage", "activeTab", "scripting", "tabs"],
+  "host_permissions": ["https://helpdesk.detran.go.gov.br/*", "<all_urls>"],
+  "web_accessible_resources": [
+    {
+      "resources": ["content/page-fill.js"],
+      "matches": ["https://helpdesk.detran.go.gov.br/*", "<all_urls>"]
+    }
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://helpdesk.detran.go.gov.br/*", "<all_urls>"],
+      "js": ["content/content.js"],
+      "css": ["content/fab.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}
